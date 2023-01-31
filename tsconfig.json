@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "strict": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    // "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */
+    "sourceMap": true,
+    "outDir": "dist/",
+    "module": "commonjs",
+    "resolveJsonModule": true,
+  },
+  "include": ["src/*"]
+}
