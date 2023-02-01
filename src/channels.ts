@@ -1,8 +1,8 @@
-import { ServerConfig } from './types'
+import { ChannelConfig } from './types'
 import SampleA from './channels/SampleA'
 import SampleB from './channels/SampleB'
 
-const Channels: ServerConfig[] = [
+const Channels: ChannelConfig[] = [
   // TODO: remove the below imports and add your own channels here
   SampleA,
   SampleB,
