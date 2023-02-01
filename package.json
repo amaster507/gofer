@@ -1,6 +1,6 @@
 {
   "name": "gofer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "An HL7 Interface Engine for Healthcare Interoperability built for Node.JS. Making interoperability a menial task.",
   "main": "server.js",
   "scripts": {
