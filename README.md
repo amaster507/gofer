@@ -1,6 +1,6 @@
 # gofer Engine
 
-![gofer Engine Logo](https://github.com/amaster507/gofer/images/gofer-logo.png)
+![gofer Engine Logo](https://raw.githubusercontent.com/amaster507/gofer/main/images/gofer-logo.png)
 
 Welcome to gofer Engine, the newest and easier HL7 interface Engine!
 
