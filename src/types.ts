@@ -112,4 +112,5 @@ export interface ChannelConfig {
   source: Connection<'I'>
   ingestion: IngestionFlow[]
   routes?: RouteFlow[][]
+  verbose?: boolean // do extra info logging.
 }
