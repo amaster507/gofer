@@ -1,5 +1,7 @@
 # gofer Engine
 
+![gofer Engine Logo](https://github.com/amaster507/gofer/images/gofer-logo.png)
+
 Welcome to gofer Engine, the newest and easier HL7 interface Engine!
 
 gofer Engine has been designed to be forked from this repo into your own private repo and then deployed into docker environments or any Node.JS server.
