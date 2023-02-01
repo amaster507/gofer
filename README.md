@@ -1,4 +1,4 @@
-# gofer Engine
+# gofer ENGINE
 
 ![gofer Engine Logo](https://raw.githubusercontent.com/amaster507/gofer/main/images/gofer-logo.png)
 
