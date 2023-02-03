@@ -105,6 +105,7 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
+// Returns true to pass through. Return false to filter out.
 type FilterFlow = (msg: Msg) => boolean
 
 type TransformFlow = (msg: Msg) => Msg
@@ -115,7 +116,7 @@ type IngestionFlow =
   | TransformFlow
   | StoreConfig
 
-type RouteFlow = IngestionFlow | Connection<'O'>
+type RouteFlow = FilterFlow | TransformFlow | StoreConfig | Connection<'O'>
 
 export interface ChannelConfig {
   id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
@@ -137,4 +138,9 @@ export type IngestFunc = (
   ack: AckFunc
 ) => Msg | false
 
-export type RunRoutesFunc = (channel: ChannelConfig, msg: Msg) => void
+export type RunRoutesFunc = (
+  channel: ChannelConfig,
+  msg: Msg
+) => Promise<boolean>
+
+export type RunRouteFunc = (route: RouteFlow[], msg: Msg) => Promise<boolean>
