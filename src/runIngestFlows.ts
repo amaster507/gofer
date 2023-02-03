@@ -36,7 +36,7 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
       }
       const filteredOrMsg = flow(msg)
       if (typeof filteredOrMsg === 'boolean') {
-        filtered = filteredOrMsg
+        filtered = !filteredOrMsg
       } else {
         msg = filteredOrMsg
       }
