@@ -1,6 +1,6 @@
-import { ChannelConfig } from './types'
-import SampleA from './channels/SampleA'
-import SampleB from './channels/SampleB'
+import { ChannelConfig } from '../types'
+import SampleA from './SampleA'
+import SampleB from './SampleB'
 
 const Channels: ChannelConfig[] = [
   // TODO: remove the below imports and add your own channels here

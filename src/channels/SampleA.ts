@@ -1,6 +1,7 @@
 import { ChannelConfig } from '../types'
 
 const SampleA: ChannelConfig = {
+  verbose: true,
   name: 'Sample A',
   source: {
     tcp: {

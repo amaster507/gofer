@@ -6,11 +6,18 @@ export const tcpServer = (
   channel: ChannelConfig,
   ingestMessage: (msg: Msg, ack: AckFunc) => Msg | void
 ) => {
+  const {
+    host,
+    port,
+    SoM = '\x0B',
+    EoM = '\x1C',
+    CR = '\r',
+  } = channel.source.tcp
   const server = net.createServer({ allowHalfOpen: false })
-  server.listen(channel.source.tcp.port, channel.source.tcp.host, () => {
+  server.listen(port, host, () => {
     if (channel.verbose)
       console.log(
-        `${channel.name}(${channel.id}) Server listening on ${channel.source.tcp.host}:${channel.source.tcp.port}`
+        `${channel.name}(${channel.id}) Server listening on ${host}:${port}`
       )
   })
   server.on('connection', (socket) => {
@@ -30,7 +37,7 @@ export const tcpServer = (
       const e = hl7[hl7.length - 1]
       const l = hl7[hl7.length - 2]
       // if beginning of a message and there is an existing partial message, then delete it
-      if (f === '\x0B' && data?.[clientAddress] !== undefined) {
+      if (f === SoM && data?.[clientAddress] !== undefined) {
         if (channel.verbose)
           console.log(
             `MESSAGE LOSS: Partial message removed from ${clientAddress}`
@@ -38,9 +45,9 @@ export const tcpServer = (
         delete data[clientAddress]
       }
       // if end of a message then see if there is a partial message to append it to.
-      if (e === '\r' && l === '\x1C') {
+      if (e === CR && l === EoM) {
         hl7 = hl7.slice(0, -2)
-        if (f === '\x0B') {
+        if (f === SoM) {
           hl7 = hl7.slice(1)
         } else {
           hl7 = (data?.[clientAddress] || '') + hl7.slice(0, -2)
@@ -49,7 +56,7 @@ export const tcpServer = (
         // else must not be the end of the message, so create/add to the partial message
       } else {
         // if this is the beginning of a message, then slice off the beginning message character
-        if (f === '\x0B') {
+        if (f === SoM) {
           hl7 = hl7.slice(1)
         }
         data[clientAddress] = (data?.[clientAddress] || '') + hl7
@@ -59,7 +66,7 @@ export const tcpServer = (
       if (channel.verbose)
         console.log('Received HL7 msg id: ', msg.get('MSH-10.1'))
       ingestMessage(msg, (ack: Msg) => {
-        socket.write('\u000b' + ack.toString() + '\u001c\r')
+        socket.write(SoM + ack.toString() + EoM + CR)
       })
     })
     socket.on('close', (data) => {

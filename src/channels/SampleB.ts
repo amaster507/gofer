@@ -2,6 +2,7 @@ import { Seg } from 'ts-hl7/dist/types/class/Segment'
 import { ChannelConfig } from '../types'
 
 const SampleB: ChannelConfig = {
+  verbose: true,
   name: 'SampleB',
   source: {
     tcp: {

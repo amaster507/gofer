@@ -21,6 +21,9 @@ type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
 interface ITcpConfig {
   host: string
   port: number
+  SoM?: string // Start of Message: defaults to `Sting.fromCharCode(0x0b)`
+  EoM?: string // End of Message: defaults to `String.fromCharCode(0x1c)`
+  CR?: string // Carriage Return: defaults to `String.fromCharCode(0x0d)`
 }
 
 interface Queue {
