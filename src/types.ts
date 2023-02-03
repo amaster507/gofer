@@ -1,4 +1,4 @@
-import { StoreOptions } from 'gofer-stores'
+import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
 
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
@@ -22,11 +22,6 @@ interface ITcpConfig {
   host: string
   port: number
 }
-
-export type StoreConfig = RequireOnlyOne<{
-  file: StoreOptions['file']
-  surreal: StoreOptions['surreal']
-}>
 
 interface Queue {
   interval?: number
@@ -73,19 +68,36 @@ export type FileConfig = RequireOnlyOne<
   'ftp' | 'sftp' | 'directory'
 >
 
-export type Connection<T extends 'I' | 'O'> = RequireOnlyOne<{
-  tcp?: TcpConfig<T> // Listens/Sends on/to a TCP host/port
-  // file?: FileConfig // Read/Write Files
-  db?: StoreConfig // Queries/Mutates from/to Store
-}>
+export type Connection<T extends 'I' | 'O'> = T extends 'I' // TODO: if after flushing the rest of these sources/destination, possibly merge these two
+  ? RequireOnlyOne<{
+      tcp?: TcpConfig<T> // Listens on a TCP host/port
+      // TODO: implement file reader source
+      // NOTE: file source is different than the `file` store, because it will support additional methods such as ftp/sftp
+      // file?: FileConfig // Read Files
+      // TODO: implement db query source
+      // NOTE: db source should be different than the `StoreConfig` because it should support query conditions. TBD
+      // db?: StoreConfig // Queries from Store
+    }>
+  : RequireOnlyOne<{
+      tcp?: TcpConfig<T> // Sends to a TCP host/port
+      // TODO: implement file writer
+      // NOTE: file destination is different than the `file` store, because it will support additional methods such as ftp/sftp
+      // file?: FileConfig // Write to Files
+      // TODO: db destination should be different than the `StoreConfig` because it should support query conditions and be able to set fields based upon parts of the HL7 message using paths. TBD
+      // db?: StoreConfig // Persists to Store
+    }>
 
 export type AckConfig = {
   // Value to use in ACK MSH.3
   application?: string // defaults to "gofor Engine"
   // Value to use in ACK MSH.4
   organization?: string // defaults to empty string ""
+  responseCode?:
+    | 'AA' // Application Accept. Default
+    | 'AE' // Application Error
+    | 'AR' // Application Reject
   // A Store configuration to save persistent messages
-  msg?: (ack: Msg, msg: Msg) => Msg // returns the ack message to send
+  msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // returns the ack message to send
 }
 
 interface Tag {
@@ -114,3 +126,15 @@ export interface ChannelConfig {
   routes?: RouteFlow[][]
   verbose?: boolean // do extra info logging.
 }
+
+export type InitServers = (channels: ChannelConfig[]) => void
+
+export type AckFunc = (ack: Msg) => void
+
+export type IngestFunc = (
+  channel: ChannelConfig,
+  msg: Msg,
+  ack: AckFunc
+) => Msg | false
+
+export type RunRoutesFunc = (channel: ChannelConfig, msg: Msg) => void

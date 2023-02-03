@@ -38,7 +38,7 @@
   "homepage": "https://github.com/amaster507/gofer#readme",
   "dependencies": {
     "dotenv": "^16.0.3",
-    "gofer-stores": "^0.0.4",
+    "gofer-stores": "^0.0.5",
     "pinst": "^3.0.0",
     "ts-hl7": "^0.0.3"
   },
