@@ -13,7 +13,7 @@ The channels are typesafe with typescript. This helps make building them easier 
 # Roadmap
 
 - [ ] Actually implement routes:
-  - [ ] Route messages to a TCP endpoint
+  - [x] Route messages to a TCP endpoint
   - [ ] Route messages to a File (NOTE: use a store)
   - [ ] Route messages to a SFTP server
   - [ ] Route messages to a database (NOTE: use a store)
@@ -23,7 +23,7 @@ The channels are typesafe with typescript. This helps make building them easier 
   - [ ] Route messages to a Email alert
   - [ ] Route messages to a SMS alert
   - [ ] Route messages to a Discord alert
-- [ ] Add support for message filtering in Routes (_config type already supported_)
+- [x] Add support for message filtering in Routes (_config type already supported_)
 - [ ] Add support for audit/event logging (_push events/logs out to 3rd party service like datadog?_)
 - [ ] Add support for jobs (e.g. schedule a job to run at a specific time, run a job on startup, run a job on a chron, or run a job every X minutes/hours/days/weeks/months/years)
 - [ ] Triger jobs to run `now` with a CLI to the actively running server
