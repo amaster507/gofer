@@ -5,7 +5,7 @@ const SampleA: ChannelConfig = {
   name: 'Sample A',
   source: {
     tcp: {
-      host: '192.168.15.201',
+      host: '0.0.0.0',
       port: 9002,
     },
   },

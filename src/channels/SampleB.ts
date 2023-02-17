@@ -6,7 +6,7 @@ const SampleB: ChannelConfig = {
   name: 'SampleB',
   source: {
     tcp: {
-      host: '192.168.15.201',
+      host: '0.0.0.0',
       port: 9001,
     },
   },
@@ -32,7 +32,7 @@ const SampleB: ChannelConfig = {
       {
         // send the message to a tcp server
         tcp: {
-          host: '192.168.15.201',
+          host: '0.0.0.0',
           port: 9002,
           queue: true,
         },

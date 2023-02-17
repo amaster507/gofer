@@ -119,7 +119,28 @@ type IngestionFlow =
   | TransformFlow
   | StoreConfig
 
+// type Ingestion = {
+//   id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this ingestion flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify ingestion flows
+//   flow: IngestionFlow
+// }
+
 type RouteFlow = FilterFlow | TransformFlow | StoreConfig | Connection<'O'>
+
+// type RouteFlowNamed = {
+//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this route flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify route flows
+//   flow: RouteFlow
+// }
+
+// type Route = {
+//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this route flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify route flows
+//   flows: (RouteFlow | RouteFlowNamed)[]
+// }
 
 export interface ChannelConfig {
   id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
@@ -127,7 +148,9 @@ export interface ChannelConfig {
   tags?: Tag[] // Tags to help organize/identify channels
   source: Connection<'I'>
   ingestion: IngestionFlow[]
+  // ingestion: (IngestionFlow | Ingestion)[]
   routes?: RouteFlow[][]
+  // routes?: (RouteFlow[] | RouteFlowRaw[] | Route)[]
   verbose?: boolean // do extra info logging.
 }
 
