@@ -250,20 +250,21 @@ Currently only TCP remote destinations are supported. The `queue` and `responseT
 
 ## Filter Flows
 
-Filter Flows are used to filter messages. They are used to determine if a message should be processed further or if it should be dropped. The interface `FilterFlow` is defined as:
+Filter Flows are used to filter messages. They are used to determine if a message should be processed further or if it should be dropped. The interface `FilterFlow` can be defined as:
 
 ```typescript
-type FilterFlow = (msg: Msg) => boolean
+type FilterFunc = (msg: Msg) => boolean
+type FilterFlow = FilterFunc | { filter: FilterFunc }
 ```
 
 Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and extrapulating data from the message to use in comparisons.
 
-If the filter returns `true`, then the message will be processed further. If the filter returns `false`, then the message will be dropped. An easy cathy phrase to remember is "If it's true, then let it through. If it's false, then let it halt."
+If the filter function returns `true`, then the message will be processed further. If the filter functions returns `false`, then the message will be dropped. An easy cathy phrase to remember is "If it's true, then let it through. If it's false, then let it halt."
 
 Here is a simple example of a filter that will only allow ADT event messages to be processed further:
 
 ```typescript
-const onlyAllowADT = (msg: Msg) => msg.get('MSH-9.1') === 'ADT'
+const filter = (msg: Msg) => msg.get('MSH-9.1') === 'ADT'
 
 const channelConfig: ChannelConfig = {
   name: 'ADT Channel',
@@ -273,7 +274,7 @@ const channelConfig: ChannelConfig = {
       port: 8080,
     },
   },
-  ingestion: [onlyAllowADT],
+  ingestion: [{ filter }],
 }
 ```
 
@@ -295,12 +296,20 @@ const channelConfig: ChannelConfig = {
 }
 ```
 
+For advanced type control, you can pass through a generic to the ChannelConfig (the _first_ generic option) to either:
+- `'F'` = Only allow raw filter functions. E.G. `ingection: [() => true]`
+- `'O'` = Only allow filter functions in objects. E.G. `ingestion: [{ filter: () => true }]`
+- `'B'` = Allow both raw filter function or wrapped in objects. E.G. `ingestion: [() => true, { filter: () => true }]`
+
+The default is `'B'`. E.G. `const conf: ChannelConfig<'B'> = ...`
+
 ## Transform Flows
 
-Transform Flows are used to transform messages. The interface `TransformFlow` is defined as:
+Transform Flows are used to transform messages. The interface `TransformFlow` can be defined as:
 
 ```typescript
-type TransformFlow = (msg: Msg) => Msg
+type TransformFunc = (msg: Msg) => Msg
+type TransformFlow = TransformFunc | { transform: TransformFunc }
 ```
 
 Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and transforming the data in the message. The trasnformer functions of the class retun back the class instance, so you can chain them together. Here is an example of a transformer that takes the field `PV1-3` and adds a prefix to it:
@@ -314,7 +323,7 @@ const channelConfig: ChannelConfig = {
       port: 8080,
     },
   },
-  ingestion: [(msg) => msg.map('PV1-3[1].1', (location) => 'HOSP.' + location)],
+  ingestion: [{ transform: (msg) => msg.map('PV1-3[1].1', (location) => 'HOSP.' + location) }],
 }
 ```
 
@@ -335,6 +344,13 @@ const channelConfig: ChannelConfig = {
   ingestion: [addPrefix('PV1-3[1].1', 'HOSP')],
 }
 ```
+
+For advanced type control, you can pass through a generic to the ChannelConfig (the _second_ generic option) to either:
+- `'F'` = Only allow raw transform functions. E.G. `ingection: [(msg) => msg]`
+- `'O'` = Only allow transform functions in objects. E.G. `ingestion: [{ transform: (msg) => msg }]`
+- `'B'` = Allow both raw transform function or wrapped in objects. E.G. `ingestion: [(msg) => msg, { transform: (msg) => msg }]`
+
+The default is `'B'`. E.G. `const conf: ChannelConfig<'B', 'B'> = ...`
 
 ## Store Configs
 

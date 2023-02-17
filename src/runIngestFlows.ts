@@ -1,7 +1,21 @@
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
 import { store } from './initStores'
-import { AckConfig, IngestFunc } from './types'
+import { AckConfig, FilterFlow, IngestFunc, TransformFlow } from './types'
+
+const filterOrTransform = (
+  msg: Msg,
+  filtered: boolean,
+  flow: (msg: Msg) => boolean | Msg
+): [msg: Msg, filtered: boolean] => {
+  const filteredOrMsg = flow(msg)
+  if (typeof filteredOrMsg === 'boolean') {
+    filtered = !filteredOrMsg
+  } else {
+    msg = filteredOrMsg
+  }
+  return [msg, filtered]
+}
 
 export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
   let filtered = false
@@ -26,6 +40,28 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
             : ackMsg
         )
         return
+      } else if (flow.hasOwnProperty('filter')) {
+        if (filtered) {
+          return
+        }
+        const [m, f] = filterOrTransform(
+          msg,
+          filtered,
+          (flow as FilterFlow<'O'>).filter
+        )
+        msg = m
+        filtered = f
+      } else if (flow.hasOwnProperty('transform')) {
+        if (filtered) {
+          return
+        }
+        const [m, f] = filterOrTransform(
+          msg,
+          filtered,
+          (flow as TransformFlow<'O'>).transform
+        )
+        msg = m
+        filtered = f
       } else {
         const storeConfig = flow as StoreConfig
         store(storeConfig, msg)
@@ -34,12 +70,9 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
       if (filtered) {
         return
       }
-      const filteredOrMsg = flow(msg)
-      if (typeof filteredOrMsg === 'boolean') {
-        filtered = !filteredOrMsg
-      } else {
-        msg = filteredOrMsg
-      }
+      const [m, f] = filterOrTransform(msg, filtered, flow)
+      msg = m
+      filtered = f
     }
   })
   if (!filtered) return msg
