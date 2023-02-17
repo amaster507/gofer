@@ -1,6 +1,6 @@
 {
   "name": "gofer-engine",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "An HL7 Interface Engine for Healthcare Interoperability built for Node.JS. Making interoperability a menial task.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

@@ -108,26 +108,58 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
+type FilterFunc = (msg: Msg) => boolean
+
 // Returns true to pass through. Return false to filter out.
-type FilterFlow = (msg: Msg) => boolean
+// O = require objectified filters
+// F = require raw function filters
+// B = allow either objectified or raw function filters
+export type FilterFlow<Filt extends 'O' | 'F' | 'B' = 'B'> = Filt extends 'O'
+  ? { filter: FilterFunc }
+  : Filt extends 'F'
+  ? FilterFunc
+  : FilterFunc | { filter: FilterFunc }
 
-type TransformFlow = (msg: Msg) => Msg
+type TransformFunc = (msg: Msg) => Msg
 
-type IngestionFlow =
-  | { ack: AckConfig }
-  | FilterFlow
-  | TransformFlow
-  | StoreConfig
+// O = require objectified transformers
+// F = require raw function transformers
+// B = allow either objectified or raw function transformers
+export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
+  ? { transform: TransformFunc }
+  : Tran extends 'F'
+  ? TransformFunc
+  : TransformFunc | { transform: TransformFunc }
 
-type RouteFlow = FilterFlow | TransformFlow | StoreConfig | Connection<'O'>
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+type IngestionFlow<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+> = { ack: AckConfig } | FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig
 
-export interface ChannelConfig {
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+type RouteFlow<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+> = FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig | Connection<'O'>
+
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+export interface ChannelConfig<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+> {
   id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name: string // a name, preferrably unique, to identify this channel later on
   tags?: Tag[] // Tags to help organize/identify channels
   source: Connection<'I'>
-  ingestion: IngestionFlow[]
-  routes?: RouteFlow[][]
+  ingestion: IngestionFlow<Filt, Tran>[]
+  routes?: RouteFlow<Filt, Tran>[][]
   verbose?: boolean // do extra info logging.
 }
 
