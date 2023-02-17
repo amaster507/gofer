@@ -139,6 +139,16 @@ type IngestionFlow<
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = { ack: AckConfig } | FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig
 
+// type Ingestion<
+//   Filt extends 'O' | 'F' | 'B' = 'B',
+//   Tran extends 'O' | 'F' | 'B' = 'B'
+// > = {
+//   id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this ingestion flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify ingestion flows
+//   flow: IngestionFlow<Filt, Tran>
+// }
+
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
@@ -146,6 +156,26 @@ type RouteFlow<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig | Connection<'O'>
+
+// type RouteFlowNamed<
+//   Filt extends 'O' | 'F' | 'B' = 'B',
+//   Tran extends 'O' | 'F' | 'B' = 'B'
+// > = {
+//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this route flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify route flows
+//   flow: RouteFlow<Filt, Tran>
+// }
+
+// type Route<
+//   Filt extends 'O' | 'F' | 'B' = 'B',
+//   Tran extends 'O' | 'F' | 'B' = 'B'
+// > = {
+//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+//   name?: string // a human readable name for this route flow. Preferrably unique
+//   tags?: Tag[] // Tags to help organize/identify route flows
+//   flows: (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+// }
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
@@ -159,7 +189,9 @@ export interface ChannelConfig<
   tags?: Tag[] // Tags to help organize/identify channels
   source: Connection<'I'>
   ingestion: IngestionFlow<Filt, Tran>[]
+  // ingestion: (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
   routes?: RouteFlow<Filt, Tran>[][]
+  // routes?: (RouteFlow<Filt, Tran>[] | RouteFlowRaw<Filt, Tran>[] | Route<Filt, Tran>)[]
   verbose?: boolean // do extra info logging.
 }
 
