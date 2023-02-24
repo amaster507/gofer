@@ -127,6 +127,12 @@ class State {
         const stat: IFlowStat = {
           active: true,
           name: flow.name,
+          config:
+            typeof flow.flow === 'function'
+              ? flow.flow.toString()
+              : JSON.stringify(flow.flow, (_, v) =>
+                  typeof v === 'function' ? v.toString() : v
+                ),
         }
         return [flow.id, stat]
       })
