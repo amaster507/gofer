@@ -18,6 +18,9 @@ type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
     [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>
   }[Keys]
 
+export type RequiredProperties<T, P extends keyof T> = Omit<T, P> &
+  Required<Pick<T, P>>
+
 interface ITcpConfig {
   host: string
   port: number
@@ -134,79 +137,111 @@ export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
-type IngestionFlow<
+export type IngestionFlow<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = { ack: AckConfig } | FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig
 
-// type Ingestion<
-//   Filt extends 'O' | 'F' | 'B' = 'B',
-//   Tran extends 'O' | 'F' | 'B' = 'B'
-// > = {
-//   id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
-//   name?: string // a human readable name for this ingestion flow. Preferrably unique
-//   tags?: Tag[] // Tags to help organize/identify ingestion flows
-//   flow: IngestionFlow<Filt, Tran>
-// }
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+export type Ingestion<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+> = {
+  id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+  name?: string // a human readable name for this ingestion flow. Preferrably unique
+  tags?: Tag[] // Tags to help organize/identify ingestion flows
+  flow: IngestionFlow<Filt, Tran>
+}
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
-type RouteFlow<
+export type RouteFlow<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig | Connection<'O'>
 
-// type RouteFlowNamed<
-//   Filt extends 'O' | 'F' | 'B' = 'B',
-//   Tran extends 'O' | 'F' | 'B' = 'B'
-// > = {
-//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
-//   name?: string // a human readable name for this route flow. Preferrably unique
-//   tags?: Tag[] // Tags to help organize/identify route flows
-//   flow: RouteFlow<Filt, Tran>
-// }
-
-// type Route<
-//   Filt extends 'O' | 'F' | 'B' = 'B',
-//   Tran extends 'O' | 'F' | 'B' = 'B'
-// > = {
-//   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
-//   name?: string // a human readable name for this route flow. Preferrably unique
-//   tags?: Tag[] // Tags to help organize/identify route flows
-//   flows: (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
-// }
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+export type RouteFlowNamed<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+> = {
+  id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+  name?: string // a human readable name for this route flow. Preferrably unique
+  tags?: Tag[] // Tags to help organize/identify route flows
+  flow: RouteFlow<Filt, Tran>
+}
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
+// Stct = strict mode. If 'S' then everything must be objectified with ids. If 'L' then allow loose.
+export type Route<
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B',
+  Stct extends 'S' | 'L' = 'L'
+> = {
+  id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+  name?: string // a human readable name for this route flow. Preferrably unique
+  tags?: Tag[] // Tags to help organize/identify route flows
+  flows: Stct extends 'S'
+    ? RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[]
+    : (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+}
+
+// Filt(er) & Tran(sformer)
+// O = require objectified filters/transformers
+// F = require raw function filters/transformers
+// B = allow either objectified or raw function filters/transformers
+// Stct = strict mode. If 'S' then everything must be objectified with ids. If 'L' then allow loose.
 export interface ChannelConfig<
   Filt extends 'O' | 'F' | 'B' = 'B',
-  Tran extends 'O' | 'F' | 'B' = 'B'
+  Tran extends 'O' | 'F' | 'B' = 'B',
+  Stct extends 'S' | 'L' = 'L'
 > {
   id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name: string // a name, preferrably unique, to identify this channel later on
   tags?: Tag[] // Tags to help organize/identify channels
   source: Connection<'I'>
-  ingestion: IngestionFlow<Filt, Tran>[]
-  // ingestion: (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
-  routes?: RouteFlow<Filt, Tran>[][]
-  // routes?: (RouteFlow<Filt, Tran>[] | RouteFlowRaw<Filt, Tran>[] | Route<Filt, Tran>)[]
+  ingestion: Stct extends 'S'
+    ? RequiredProperties<Ingestion<Filt, Tran>, 'id' | 'flow'>[]
+    : (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
+  routes?: Stct extends 'S'
+    ? RequiredProperties<Route<Filt, Tran, 'S'>, 'id' | 'flows'>[]
+    : (
+        | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+        | Route<Filt, Tran>
+      )[]
   verbose?: boolean // do extra info logging.
 }
 
-export type InitServers = (channels: ChannelConfig[]) => void
+export type InitServers = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channels: ChannelConfig<Filt, Tran, 'S'>[]
+) => void
 
 export type AckFunc = (ack: Msg) => void
 
-export type IngestFunc = (
-  channel: ChannelConfig,
+export type IngestFunc = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channel: ChannelConfig<Filt, Tran, 'S'>,
   msg: Msg,
   ack: AckFunc
 ) => Msg | false
 
-export type RunRoutesFunc = (
-  channel: ChannelConfig,
+export type RunRoutesFunc = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channel: ChannelConfig<Filt, Tran, 'S'>,
   msg: Msg
 ) => Promise<boolean>
 

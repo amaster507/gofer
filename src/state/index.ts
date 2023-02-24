@@ -1,20 +1,27 @@
+import { ChannelConfig, RequiredProperties } from '../types'
+
+interface IFlowStat {
+  name?: string
+  active: boolean
+}
+
+interface IRouteStat {
+  name?: string
+  active?: boolean
+  flows?: {
+    [key: string]: IFlowStat
+  }
+}
+
 export interface IState {
   [key: string]: {
+    name?: string
     active?: boolean
     ingestFlows?: {
-      [key: string]: {
-        active?: boolean
-      }
+      [key: string]: IFlowStat
     }
     routes?: {
-      [key: string]: {
-        active?: boolean
-        flows?: {
-          [key: string]: {
-            active?: boolean
-          }
-        }
-      }
+      [key: string]: IRouteStat
     }
   }
 }
@@ -98,23 +105,56 @@ class State {
     }
     return this
   }
-  public addChannel = (
-    channelId: string,
-    ingestFlows: true[],
-    routes: true[][],
-    verbose = false
+  public addChannel = <
+    Filt extends 'O' | 'F' | 'B' = 'B',
+    Tran extends 'O' | 'F' | 'B' = 'B'
+  >(
+    channel: RequiredProperties<ChannelConfig<Filt, Tran, 'S'>, 'id'>
   ) => {
+    const channelId = channel.id
     if (this.state?.[channelId] !== undefined) {
-      if (verbose)
+      if (channel.verbose)
         console.warn(
           `Channel "${channelId}" already exists in state. Not overwriting.`
         )
       return this
     }
+    const ingestFlows: {
+      [k: string]: IFlowStat
+    } = Object.fromEntries(
+      channel.ingestion.map((flow) => {
+        const stat: IFlowStat = {
+          active: true,
+          name: flow.name,
+        }
+        return [flow.id, stat]
+      })
+    )
+
+    const routes: {
+      [key: string]: IRouteStat
+    } = Object.fromEntries(
+      channel.routes?.map((route) => {
+        const flows: {
+          [k: string]: IFlowStat
+        } = Object.fromEntries(
+          route.flows.map((flow) => {
+            const stat: IFlowStat = {
+              active: true,
+              name: flow.name,
+            }
+            return [flow.id, stat]
+          })
+        )
+        return [route.id, flows]
+      }) ?? []
+    )
+
     this.state[channelId] = {
       active: true,
-      // ingestFlows,
-      // routes,
+      name: channel.name,
+      ingestFlows,
+      routes,
     }
     return this
   }

@@ -11,9 +11,21 @@ const schema = buildSchema(`
   }
   type Channel {
     id: ID!
+    name: String
     active: Boolean
-    ingestionFlows: [Boolean]
-    routes: [[Boolean]]
+    ingestionFlows: [FlowStat!]
+    routes: [RouteStat!]
+  }
+  type FlowStat {
+    id: ID!
+    name: String
+    active: Boolean
+  }
+  type RouteStat {
+    id: ID!
+    name: String
+    active: Boolean
+    flows: [FlowStat!]
   }
 `)
 
@@ -25,9 +37,23 @@ const rootValue = (state: State) => {
         channels: st.map(([id, ch]) => {
           return {
             id,
+            name: ch.name,
             active: ch.active,
-            ingestionFlows: ch.ingestFlows,
-            routes: ch.routes,
+            ingestionFlows: Object.entries(ch?.ingestFlows ?? []).map(
+              ([id, stat]) => {
+                return { id, ...stat }
+              }
+            ),
+            routes: Object.entries(ch?.routes ?? []).map(([id, flows]) => {
+              return {
+                id,
+                name: flows.name,
+                active: flows.active,
+                flows: Object.entries(flows).map(([id, stat]) => {
+                  return { id, ...stat }
+                }),
+              }
+            }),
           }
         }),
       }
@@ -53,6 +79,7 @@ class gql {
     this.variables = req.variables
   }
   public res = async () => {
+    console.log(this.state.get()['sample-b'].routes)
     return graphql({
       schema,
       source: this.query,

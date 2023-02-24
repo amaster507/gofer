@@ -20,9 +20,10 @@ const filterOrTransform = (
 export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
   let filtered = false
   channel.ingestion.forEach((flow) => {
-    if (typeof flow === 'object') {
-      if (flow.hasOwnProperty('ack')) {
-        const ackConfig = (flow as { ack: AckConfig }).ack as AckConfig
+    const step = flow.flow
+    if (typeof step === 'object') {
+      if (step.hasOwnProperty('ack')) {
+        const ackConfig = (step as { ack: AckConfig }).ack as AckConfig
         const app = ackConfig.application ?? 'gofer ENGINE'
         const org = ackConfig.organization ?? ''
         const res = ackConfig.responseCode ?? 'AA'
@@ -40,37 +41,37 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
             : ackMsg
         )
         return
-      } else if (flow.hasOwnProperty('filter')) {
+      } else if (step.hasOwnProperty('filter')) {
         if (filtered) {
           return
         }
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (flow as FilterFlow<'O'>).filter
+          (step as FilterFlow<'O'>).filter
         )
         msg = m
         filtered = f
-      } else if (flow.hasOwnProperty('transform')) {
+      } else if (step.hasOwnProperty('transform')) {
         if (filtered) {
           return
         }
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (flow as TransformFlow<'O'>).transform
+          (step as TransformFlow<'O'>).transform
         )
         msg = m
         filtered = f
       } else {
-        const storeConfig = flow as StoreConfig
+        const storeConfig = step as StoreConfig
         store(storeConfig, msg)
       }
-    } else if (typeof flow === 'function') {
+    } else if (typeof step === 'function') {
       if (filtered) {
         return
       }
-      const [m, f] = filterOrTransform(msg, filtered, flow)
+      const [m, f] = filterOrTransform(msg, filtered, step)
       msg = m
       filtered = f
     }

@@ -2,8 +2,11 @@ import net from 'net'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
 
-export const tcpServer = (
-  channel: ChannelConfig,
+export const tcpServer = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channel: ChannelConfig<Filt, Tran, 'S'>,
   ingestMessage: (msg: Msg, ack: AckFunc) => Msg | void
 ) => {
   const {
