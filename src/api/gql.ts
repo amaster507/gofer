@@ -1,33 +1,38 @@
 import { graphql, buildSchema } from 'graphql'
 import { Maybe } from 'graphql/jsutils/Maybe'
 import State from '../state'
+import fs from 'fs'
 
-const schema = buildSchema(`
-  type Query {
-    stats: Stats
-  }
-  type Stats {
-    channels: [Channel]
-  }
-  type Channel {
-    id: ID!
-    active: Boolean
-    ingestionFlows: [Boolean]
-    routes: [[Boolean]]
-  }
-`)
+const schema = buildSchema(
+  fs.readFileSync('./src/api/schema.graphql', { encoding: 'utf8' })
+)
 
 const rootValue = (state: State) => {
   return {
-    stats: () => {
+    getConfig: () => {
       const st = Object.entries(state.get())
       return {
         channels: st.map(([id, ch]) => {
           return {
             id,
+            name: ch.name,
             active: ch.active,
-            ingestionFlows: ch.ingestFlows,
-            routes: ch.routes,
+            ingestionFlows: Object.entries(ch?.ingestFlows ?? []).map(
+              ([id, stat]) => {
+                return { id, ...stat }
+              }
+            ),
+            routes: Object.entries(ch?.routes ?? []).map(([id, route]) => {
+              console.log(route)
+              return {
+                id,
+                name: route.name,
+                active: route.active,
+                flows: Object.entries(route?.flows ?? []).map(([id, stat]) => {
+                  return { id, ...stat }
+                }),
+              }
+            }),
           }
         }),
       }

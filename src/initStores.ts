@@ -1,47 +1,49 @@
 import stores, { Store, StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
 import { hash } from './hash'
-import {
-  ChannelConfig,
-  // Connection
-} from './types'
+import { ChannelConfig } from './types'
 
 const hashedStores: Record<string, Store> = {}
 
-export const initStores = (config: ChannelConfig[]) => {
+export const initStores = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  config: ChannelConfig<Filt, Tran, 'S'>[]
+) => {
   const routeStores: StoreConfig[] = []
   config.forEach((channel) => {
     // TODO: also implement source db initialization
     routeStores.push(
-      ...(channel.ingestion.filter((flow) => {
-        if (typeof flow === 'object') {
-          return Object.keys(stores).some((store) =>
-            Object.keys(flow).includes(store)
-          )
-        }
-        return false
-      }) as StoreConfig[])
+      ...(channel.ingestion
+        .map((flow) => {
+          return flow.flow
+        })
+        .filter((flow) => {
+          if (typeof flow === 'object') {
+            return Object.keys(stores).some((store) =>
+              Object.keys(flow).includes(store)
+            )
+          }
+          return false
+        }) as StoreConfig[])
     )
-    channel.routes?.forEach((flows) => {
-      routeStores.push(
-        ...(flows
-          .map((flow) => {
-            if (typeof flow === 'object') {
-              if (
-                Object.keys(stores).some((store) =>
+    channel.routes
+      ?.map((route) => route.flows)
+      .forEach((flows) => {
+        routeStores.push(
+          ...(flows
+            .map((flow) => flow.flow)
+            .filter((flow) => {
+              if (typeof flow === 'object') {
+                return Object.keys(stores).some((store) =>
                   Object.keys(flow).includes(store)
                 )
-              )
-                return flow as StoreConfig
-              // TODO: also implement destination db initialization
-              // if (flow.hasOwnProperty('db'))
-              //   return (flow as Connection<'O'>).db as StoreConfig
-            }
-            return undefined
-          })
-          .filter((flow) => typeof flow !== 'undefined') as StoreConfig[])
-      )
-    })
+              }
+              return false
+            }) as StoreConfig[])
+        )
+      })
     return routeStores
   })
 
@@ -53,7 +55,7 @@ export const initStores = (config: ChannelConfig[]) => {
       ) as Store
     }
   })
-  return hashedStores
+  return config
 }
 
 export const getStore = (config: StoreConfig): Store | undefined =>

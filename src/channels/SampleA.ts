@@ -25,6 +25,7 @@ const SampleA: ChannelConfig = {
       },
     },
   ],
+  routes: [[{ file: {} }]],
 }
 
 export default SampleA

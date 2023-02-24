@@ -1,12 +1,28 @@
 import { StoreConfig } from 'gofer-stores'
 import { store } from './initStores'
 import { tcpClient } from './tcpClient'
-import { RunRouteFunc, RunRoutesFunc, TcpConfig } from './types'
+import {
+  RouteFlow,
+  RouteFlowNamed,
+  RunRouteFunc,
+  RunRoutesFunc,
+  TcpConfig,
+} from './types'
 
-export const runRoutes: RunRoutesFunc = async (channel, msg) =>
-  Promise.all(channel?.routes?.map((route) => runRoute(route, msg)) || []).then(
+export const runRoutes: RunRoutesFunc = async (channel, msg) => {
+  const routes = channel?.routes?.map((route) => {
+    const flows = route.flows
+    return (flows as (RouteFlow | RouteFlowNamed)[]).map((flow) => {
+      if (typeof flow === 'object' && flow.hasOwnProperty('flow')) {
+        flow = (flow as RouteFlowNamed).flow
+      }
+      return flow as RouteFlow
+    })
+  })
+  return Promise.all(routes?.map((route) => runRoute(route, msg)) || []).then(
     (res) => !res.some((r) => !r)
   )
+}
 
 export const runRoute: RunRouteFunc = async (route, msg) => {
   let filtered = false

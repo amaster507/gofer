@@ -4,6 +4,30 @@
 
 Welcome to gofer Engine, the newest and easier HL7 interface Engine!
 
+Contents:
+
+- [Setup, Installation and Usage](#setup-installation-and-usage)
+  - [Prerequisites](#prerequisites)
+  - [Setup](#setup)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Running the Server in Development](#running-the-server-in-development)
+  - [Version Control with Git](#version-control-with-git)
+  - [Preparing for Production](#preparing-for-production)
+  - [Deploying to Production](#deploying-to-production)
+- [Developing Interface Channels](#developing-interface-channels)
+  - [gofer Engine Configuration](#gofer-engine-configuration)
+  - [Filter Flows](#filter-flows)
+  - [Transform Flows](#transform-flows)
+  - [Store Configs](#store-configs)
+  - [Message Class (Msg)](#message-class-msg)
+    - [Decoding HL7 to JSON](#decoding)
+    - [Encoding JSON to HL7](#encoding)
+    - [Extrapolating Paths from HL7](#extrapolating)
+    - [Transforming Messages](#transforming)
+    - [Msg Sub Classes](#sub-classes)
+- [Administration](#administration)
+
 # Setup, Installation, and Usage
 
 I find it helpful to newer developers to have a step-by-step guide to get them started. If you are experienced with Node projects, you can skip to the [Installation](#installation) section.
@@ -476,8 +500,71 @@ Each of the above subclasses expose the following methods:
 - `raw()` -
 - `toString()` -
 
+# Administration
+
+This server includes a GraphQL Administrative API since verson 0.0.7. This server is by default available on port 8080, but can be customized using the `.env` parameter `API_PORT`.
+
+This Management API is currently in development but the following schema is currently supported:
+
+```graphql
+type Query {
+  getConfig: GoferConfig
+}
+type GoferConfig {
+  channels: [Channel!]
+}
+type Channel {
+  id: ID!
+  name: String
+  active: Boolean
+  ingestionFlows: [FlowStat!]
+  routes: [RouteStat!]
+}
+type FlowStat {
+  id: ID!
+  name: String
+  active: Boolean
+  config: String
+}
+type RouteStat {
+  id: ID!
+  name: String
+  active: Boolean
+  flows: [FlowStat!]
+}
+```
+
+This allows you currently to query the configuration of the server with the following graphql query:
+
+```graphql
+query QueryConfig {
+  getConfig {
+    channels {
+      id
+      name
+      active
+      ingestionFlows {
+        id
+        name
+        active
+        config
+      }
+      routes {
+        id
+        name
+        active
+        flows {
+          id
+          name
+          active
+          config
+        }
+      }
+    }
+  }
+}
+```
+
+If you are unfamiliar with being the client of a GraphQL API, I recommend checking out [How To GraphQL - Introduction](https://www.howtographql.com/basics/0-introduction/)
+
 # [Roadmap](https://github.com/users/amaster507/projects/1)
-
-```
-
-```
