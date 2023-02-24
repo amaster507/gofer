@@ -1,6 +1,6 @@
 import net from 'net'
 
-const PORT = 8080
+const PORT = parseInt(process.env?.API_PORT ?? '8080')
 const HOST = '0.0.0.0'
 
 interface IApiOptions {

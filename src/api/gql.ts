@@ -1,37 +1,15 @@
 import { graphql, buildSchema } from 'graphql'
 import { Maybe } from 'graphql/jsutils/Maybe'
 import State from '../state'
+import fs from 'fs'
 
-const schema = buildSchema(`
-  type Query {
-    stats: Stats
-  }
-  type Stats {
-    channels: [Channel]
-  }
-  type Channel {
-    id: ID!
-    name: String
-    active: Boolean
-    ingestionFlows: [FlowStat!]
-    routes: [RouteStat!]
-  }
-  type FlowStat {
-    id: ID!
-    name: String
-    active: Boolean
-  }
-  type RouteStat {
-    id: ID!
-    name: String
-    active: Boolean
-    flows: [FlowStat!]
-  }
-`)
+const schema = buildSchema(
+  fs.readFileSync('./src/api/schema.graphql', { encoding: 'utf8' })
+)
 
 const rootValue = (state: State) => {
   return {
-    stats: () => {
+    getConfig: () => {
       const st = Object.entries(state.get())
       return {
         channels: st.map(([id, ch]) => {
@@ -44,12 +22,13 @@ const rootValue = (state: State) => {
                 return { id, ...stat }
               }
             ),
-            routes: Object.entries(ch?.routes ?? []).map(([id, flows]) => {
+            routes: Object.entries(ch?.routes ?? []).map(([id, route]) => {
+              console.log(route)
               return {
                 id,
-                name: flows.name,
-                active: flows.active,
-                flows: Object.entries(flows).map(([id, stat]) => {
+                name: route.name,
+                active: route.active,
+                flows: Object.entries(route?.flows ?? []).map(([id, stat]) => {
                   return { id, ...stat }
                 }),
               }
@@ -79,7 +58,6 @@ class gql {
     this.variables = req.variables
   }
   public res = async () => {
-    console.log(this.state.get()['sample-b'].routes)
     return graphql({
       schema,
       source: this.query,

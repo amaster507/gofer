@@ -3,6 +3,7 @@ import { ChannelConfig, RequiredProperties } from '../types'
 interface IFlowStat {
   name?: string
   active: boolean
+  config?: string
 }
 
 interface IRouteStat {
@@ -142,11 +143,24 @@ class State {
             const stat: IFlowStat = {
               active: true,
               name: flow.name,
+              config:
+                typeof flow.flow === 'function'
+                  ? flow.flow.toString()
+                  : JSON.stringify(flow.flow, (_, v) =>
+                      typeof v === 'function' ? v.toString() : v
+                    ),
             }
             return [flow.id, stat]
           })
         )
-        return [route.id, flows]
+        return [
+          route.id,
+          {
+            active: true,
+            name: route.name,
+            flows,
+          },
+        ]
       }) ?? []
     )
 
