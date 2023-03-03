@@ -9,7 +9,8 @@ export const initServers: InitServers = (channels) => {
     .forEach((c) => {
       tcpServer(c, (msg, ack) => {
         const ingestedMsg = runIngestFlows(c, msg, ack)
-        if (ingestedMsg !== false) runRoutes(c, ingestedMsg)
+        if (ingestedMsg !== false) return runRoutes(c, ingestedMsg)
+        return new Promise((res) => res(false))
       })
     })
 }

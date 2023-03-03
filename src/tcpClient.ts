@@ -11,15 +11,10 @@ export const tcpClient: TcpClientFunc = (
     SoM = String.fromCharCode(0x0b),
     EoM = String.fromCharCode(0x1c),
     CR = String.fromCharCode(0x0d),
-    queue,
     responseTimeout,
   },
   msg
 ) => {
-  if (queue !== undefined) {
-    console.warn('TODO: TCP Queue is not yet implemented')
-    console.log({ queue })
-  }
   if (responseTimeout !== undefined) {
     console.warn('TODO: TCP responseTimeout is not yet implemented')
     console.log({ responseTimeout })

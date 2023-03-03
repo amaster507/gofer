@@ -1,13 +1,15 @@
 import net from 'net'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
+import { addToQueue } from './queue'
+import { doAck } from './doAck'
 
 export const tcpServer = <
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
-  ingestMessage: (msg: Msg, ack: AckFunc) => Msg | void
+  ingestMessage: (msg: Msg, ack?: AckFunc) => Promise<boolean>
 ) => {
   const {
     host,
@@ -15,8 +17,12 @@ export const tcpServer = <
     SoM = '\x0B',
     EoM = '\x1C',
     CR = '\r',
+    maxConnections,
   } = channel.source.tcp
+  const id = channel.id
+  const queue = channel.source.queue
   const server = net.createServer({ allowHalfOpen: false })
+  if (maxConnections !== undefined) server.setMaxListeners(maxConnections)
   server.listen(port, host, () => {
     if (channel.verbose)
       console.log(
@@ -68,9 +74,14 @@ export const tcpServer = <
       const msg = new Msg(hl7)
       if (channel.verbose)
         console.log('Received HL7 msg id: ', msg.get('MSH-10.1'))
-      ingestMessage(msg, (ack: Msg) => {
-        socket.write(SoM + ack.toString() + EoM + CR)
-      })
+      if (queue) {
+        socket.write(SoM + doAck(msg).toString() + EoM + CR)
+        addToQueue(`${id}.source`, queue, (msg) => ingestMessage(msg))(msg)
+      } else {
+        ingestMessage(msg, (ack: Msg) => {
+          socket.write(SoM + ack.toString() + EoM + CR)
+        })
+      }
     })
     socket.on('close', (data) => {
       if (channel.verbose)
@@ -81,3 +92,4 @@ export const tcpServer = <
     })
   })
 }
+

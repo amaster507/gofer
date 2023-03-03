@@ -48,12 +48,14 @@
   },
   "homepage": "https://github.com/amaster507/gofer#readme",
   "dependencies": {
+    "better-queue": "^3.8.12",
     "gofer-stores": "^0.0.5",
     "graphql": "^16.6.0",
     "ts-hl7": "^0.0.3"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.4.2",
+    "@types/better-queue": "^3.8.3",
     "@types/jest": "^29.4.0",
     "@types/node": "^18.11.18",
     "@typescript-eslint/eslint-plugin": "^5.50.0",

@@ -52,7 +52,6 @@ const SampleB: ChannelConfig = {
           tcp: {
             host: '0.0.0.0',
             port: 9002,
-            queue: true,
           },
         },
         {

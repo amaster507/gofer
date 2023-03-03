@@ -1,5 +1,6 @@
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
+import { doAck } from './doAck'
 import { store } from './initStores'
 import { AckConfig, FilterFlow, IngestFunc, TransformFlow } from './types'
 
@@ -24,22 +25,8 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
     if (typeof step === 'object') {
       if (step.hasOwnProperty('ack')) {
         const ackConfig = (step as { ack: AckConfig }).ack as AckConfig
-        const app = ackConfig.application ?? 'gofer ENGINE'
-        const org = ackConfig.organization ?? ''
-        const res = ackConfig.responseCode ?? 'AA'
-        const id = msg.get('MSH-10.1')
-        const now = new Date()
-          .toUTCString()
-          .replace(/[^0-9]/g, '')
-          .slice(0, -3)
-        const ackMsg = new Msg(
-          `MSH|^~\\&|${app}|${org}|||${now}||ACK|${id}|P|2.5.1|\nMSA|${res}|${id}`
-        )
-        ack(
-          typeof ackConfig.msg === 'function'
-            ? ackConfig.msg(ackMsg, msg, filtered)
-            : ackMsg
-        )
+        const ackMsg = doAck(msg, ackConfig, filtered)
+        if (typeof ack === 'function') ack(ackMsg)
         return
       } else if (step.hasOwnProperty('filter')) {
         if (filtered) {
