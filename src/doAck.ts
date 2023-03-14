@@ -1,7 +1,11 @@
-import Msg from 'ts-hl7';
-import { AckConfig } from './types';
+import Msg from 'ts-hl7'
+import { AckConfig } from './types'
 
-export const doAck = (msg: Msg, ackConfig: AckConfig = {}, filtered = false) => {
+export const doAck = (
+  msg: Msg,
+  ackConfig: AckConfig = {},
+  filtered = false
+) => {
   const app = ackConfig.application ?? 'gofer ENGINE'
   const org = ackConfig.organization ?? ''
   const res = ackConfig.responseCode ?? 'AA'
