@@ -1,9 +1,8 @@
-import { randomUUID } from 'crypto'
+import { genId } from './genId'
 import {
   ChannelConfig,
   Ingestion,
   IngestionFlow,
-  RequiredProperties,
   Route,
   RouteFlow,
   RouteFlowNamed,
@@ -15,7 +14,7 @@ export const ingestionObjectify = (channel: ChannelConfig) => {
     if (typeof flow === 'object' && flow.hasOwnProperty('flow')) {
       flow = flow as Ingestion
       if (flow?.id === undefined) {
-        const ingestionId = randomUUID()
+        const ingestionId = genId()
         if (channel.verbose)
           console.log(
             `Channel ${channel.name} (${channel.id}) had an ingestion flow without an id. Generated id: ${ingestionId}`
@@ -24,7 +23,7 @@ export const ingestionObjectify = (channel: ChannelConfig) => {
       }
       return flow
     }
-    const ingestionId = randomUUID()
+    const ingestionId = genId()
     if (channel.verbose)
       console.log(
         `Channel ${channel.name} (${channel.id}) had an ingestion flow without an id. Generated id: ${ingestionId}`
@@ -40,10 +39,9 @@ export const ingestionObjectify = (channel: ChannelConfig) => {
 // this function does not modify the original channel object and returns only the ingestion flows
 export const ingestionSimplify = <
   Filt extends 'O' | 'F' | 'B' = 'B',
-  Tran extends 'O' | 'F' | 'B' = 'B',
-  Stct extends 'S' | 'L' = 'L'
+  Tran extends 'O' | 'F' | 'B' = 'B'
 >(
-  channel: ChannelConfig<Filt, Tran, Stct>
+  channel: ChannelConfig<Filt, Tran, 'S' | 'L'>
 ): IngestionFlow[] => {
   return channel.ingestion.map((flow) => {
     if (typeof flow === 'object' && flow.hasOwnProperty('flow')) {
@@ -61,7 +59,7 @@ export const routeFlowObjectify = (
     if (typeof flow === 'object' && flow.hasOwnProperty('flow')) {
       flow = flow as RouteFlowNamed<'B', 'B'>
       if (flow?.id === undefined) {
-        const flowId = randomUUID()
+        const flowId = genId()
         if (verbose)
           console.log(
             `Named Route (${flow.name}) was missing the id. Generated id: ${flowId}`
@@ -70,7 +68,7 @@ export const routeFlowObjectify = (
       }
       return flow
     }
-    const flowId = randomUUID()
+    const flowId = genId()
     if (verbose)
       console.log(`Route was missing the id. Generated id: ${flowId}`)
     return {
@@ -88,7 +86,7 @@ export const routesObjectify = (
     if (typeof route === 'object' && route.hasOwnProperty('flows')) {
       route = route as Route
       if (route?.id === undefined) {
-        const routeId = randomUUID()
+        const routeId = genId()
         if (channel.verbose)
           console.log(
             `Channel ${channel.name} (${channel.id}) had an route without an id. Generated id: ${routeId}`
@@ -98,7 +96,7 @@ export const routesObjectify = (
       route.flows = routeFlowObjectify(route.flows, channel.verbose)
       return route
     }
-    const routeId = randomUUID()
+    const routeId = genId()
     if (channel.verbose)
       console.log(
         `Channel ${channel.name} (${channel.id}) had an route without an id. Generated id: ${routeId}`
@@ -133,10 +131,10 @@ export const routesSimplify = (channel: ChannelConfig): RouteFlow[][] => {
 
 export const coerceStrictTypedChannels = (
   config: ChannelConfig<'B', 'B', 'L'>[]
-): RequiredProperties<ChannelConfig<'B', 'B', 'S'>, 'id'>[] => {
+): ChannelConfig<'B', 'B', 'S'>[] => {
   return config.map((channel) => {
     if (!channel.id) {
-      channel.id = randomUUID()
+      channel.id = genId()
       if (channel.verbose)
         console.log(
           `Channel "${channel.name}" config did not define an \`id\`. Assigned: "${channel.id}"`
@@ -156,10 +154,7 @@ export const coerceStrictTypedChannels = (
     }
     ingestionObjectify(channel)
     routesObjectify(channel)
-    const stronglyTypedChannel = channel as unknown as RequiredProperties<
-      ChannelConfig<'B', 'B', 'S'>,
-      'id'
-    >
+    const stronglyTypedChannel = channel as ChannelConfig<'B', 'B', 'S'>
     return stronglyTypedChannel
   })
 }

@@ -8,7 +8,7 @@ type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
 > &
   {
     [K in Keys]-?: Required<Pick<T, K>> &
-    Partial<Record<Exclude<Keys, K>, undefined>>
+      Partial<Record<Exclude<Keys, K>, undefined>>
   }[Keys]
 
 type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
@@ -43,7 +43,10 @@ export interface Queue<T = Msg> {
   filterQueue?: (msg: T, cb: (error: null | any, msg: T) => void) => void // Used to conditionally filter what messages are allowed to enter the queue. call, `cb(null, msg)` to pass through message. Call `cb('rejected ...')` to filter the message.
   precondition?: (cb: (error: any, passOrFail: boolean) => void) => void
   preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
-  onEvents?: [event: QueueEvent, listener: (id: string, error: string) => void][]
+  onEvents?: [
+    event: QueueEvent,
+    listener: (id: string, error: string) => void
+  ][]
   storage?: StoreConfig
   concurrent?: number // Allows more than one message to be processed assynchronously if > 1. Defaults to 1.
   maxTimeout?: number // Number of milliseconds before a task is considered timed out. Defaults to 10x1000 = 10 seconds
@@ -53,8 +56,8 @@ export interface Queue<T = Msg> {
 export type TcpConfig<T extends 'I' | 'O' = 'I'> = T extends 'I'
   ? ITcpConfig
   : ITcpConfig & {
-    responseTimeout?: number | false
-  }
+      responseTimeout?: number | false
+    }
 
 interface IFileConfig {
   directory: string
@@ -89,25 +92,25 @@ export type FileConfig = RequireOnlyOne<
 
 export type Connection<T extends 'I' | 'O'> = T extends 'I' // TODO: if after flushing the rest of these sources/destination, possibly merge these two
   ? RequireOnlyOne<{
-    tcp?: TcpConfig<T> // Listens on a TCP host/port
-    // TODO: implement file reader source
-    // NOTE: file source is different than the `file` store, because it will support additional methods such as ftp/sftp
-    // file?: FileConfig // Read Files
-    // TODO: implement db query source
-    // NOTE: db source should be different than the `StoreConfig` because it should support query conditions. TBD
-    // db?: StoreConfig // Queries from Store
-  }> & {
-    // NOTE: by using a queue acks are positively sent when queued not when queue is emptied
-    queue?: Queue
-  }
+      tcp?: TcpConfig<T> // Listens on a TCP host/port
+      // TODO: implement file reader source
+      // NOTE: file source is different than the `file` store, because it will support additional methods such as ftp/sftp
+      // file?: FileConfig // Read Files
+      // TODO: implement db query source
+      // NOTE: db source should be different than the `StoreConfig` because it should support query conditions. TBD
+      // db?: StoreConfig // Queries from Store
+    }> & {
+      // NOTE: by using a queue acks are positively sent when queued not when queue is emptied
+      queue?: Queue
+    }
   : RequireOnlyOne<{
-    tcp?: TcpConfig<T> // Sends to a TCP host/port
-    // TODO: implement file writer
-    // NOTE: file destination is different than the `file` store, because it will support additional methods such as ftp/sftp
-    // file?: FileConfig // Write to Files
-    // TODO: db destination should be different than the `StoreConfig` because it should support query conditions and be able to set fields based upon parts of the HL7 message using paths. TBD
-    // db?: StoreConfig // Persists to Store
-  }>
+      tcp?: TcpConfig<T> // Sends to a TCP host/port
+      // TODO: implement file writer
+      // NOTE: file destination is different than the `file` store, because it will support additional methods such as ftp/sftp
+      // file?: FileConfig // Write to Files
+      // TODO: db destination should be different than the `StoreConfig` because it should support query conditions and be able to set fields based upon parts of the HL7 message using paths. TBD
+      // db?: StoreConfig // Persists to Store
+    }>
 
 export type AckConfig = {
   // Value to use in ACK MSH.3
@@ -115,9 +118,9 @@ export type AckConfig = {
   // Value to use in ACK MSH.4
   organization?: string // defaults to empty string ""
   responseCode?:
-  | 'AA' // Application Accept. Default
-  | 'AE' // Application Error
-  | 'AR' // Application Reject
+    | 'AA' // Application Accept. Default
+    | 'AE' // Application Error
+    | 'AR' // Application Reject
   // A Store configuration to save persistent messages
   msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // returns the ack message to send
 }
@@ -208,8 +211,8 @@ export type Route<
   tags?: Tag[] // Tags to help organize/identify route flows
   queue?: Queue
   flows: Stct extends 'S'
-  ? RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[]
-  : (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+    ? RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[]
+    : (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
 }
 
 // Filt(er) & Tran(sformer)
@@ -221,22 +224,25 @@ export type ChannelConfig<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B',
   Stct extends 'S' | 'L' = 'L'
-> = RequiredProperties<{
-  id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
-  name: string // a name, preferrably unique, to identify this channel later on
-  tags?: Tag[] // Tags to help organize/identify channels
-  source: Connection<'I'>
-  ingestion: Stct extends 'S'
-  ? RequiredProperties<Ingestion<Filt, Tran>, 'id' | 'flow'>[]
-  : (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
-  routes?: Stct extends 'S'
-  ? RequiredProperties<Route<Filt, Tran, 'S'>, 'id' | 'flows'>[]
-  : (
-    | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
-    | Route<Filt, Tran>
-  )[]
-  verbose?: boolean // do extra info logging.
-}, Stct extends 'S' ? 'id' : 'name'> // `name` here is just a placholder for default. It doesn't change anything because name is already a required field.
+> = RequiredProperties<
+  {
+    id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+    name: string // a name, preferrably unique, to identify this channel later on
+    tags?: Tag[] // Tags to help organize/identify channels
+    source: Connection<'I'>
+    ingestion: Stct extends 'S'
+      ? RequiredProperties<Ingestion<Filt, Tran>, 'id' | 'flow'>[]
+      : (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
+    routes?: Stct extends 'S'
+      ? RequiredProperties<Route<Filt, Tran, 'S'>, 'id' | 'flows'>[]
+      : (
+          | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+          | Route<Filt, Tran>
+        )[]
+    verbose?: boolean // do extra info logging.
+  },
+  Stct extends 'S' ? 'id' : 'name'
+> // `name` here is just a placholder for default. It doesn't change anything because name is already a required field.
 
 export type InitServers = <
   Filt extends 'O' | 'F' | 'B' = 'B',
