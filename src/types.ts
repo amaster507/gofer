@@ -1,6 +1,7 @@
 import { QueueEvent } from 'better-queue'
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
+import { QueueData } from './queue'
 
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
   T,
@@ -34,20 +35,24 @@ interface ITcpConfig {
 export interface Queue<T = Msg> {
   interval?: number // milliseconds between retries. Defaults to 10x1000 = 10 seconds
   // FIXME: better-queue does not currently support a queue limit.
-  // limit?: number // Limit the number of messages that can be queued. Defaults 0 = Infinity
+  // limit?: number // Limit the number of messages that can be queued. Defaults to Infinity
   filo?: boolean // First In Last Out. Defaults to false
-  retries?: number // Defaults to 0 = Infinity
+  retries?: number // Defaults to Infinity
   // TODO: `id` function is limited to only root key of T, change this to take the data and return the exact id.
   // id?: keyof T | ((task: T, cb: (error: any, id: keyof T | { id: string }) => void) => void) |  ((task: T, cb: (error: any, id: keyof T) => void) => void) // used to uniquely identify the items in queue
-  id?: keyof T | ((task: T, cb: (error: any, id: keyof T) => void) => void) // used to uniquely identify the items in queue
-  filterQueue?: (msg: T, cb: (error: null | any, msg: T) => void) => void // Used to conditionally filter what messages are allowed to enter the queue. call, `cb(null, msg)` to pass through message. Call `cb('rejected ...')` to filter the message.
-  precondition?: (cb: (error: any, passOrFail: boolean) => void) => void
+  id?: (msg: T) => string | undefined // used to uniquely identify the items in queue
+  filterQueue?: (
+    msg: QueueData<T>,
+    cb: (error: null | unknown, msg: QueueData<T>) => void
+  ) => void // Used to conditionally filter what messages are allowed to enter the queue. call, `cb(null, msg)` to pass through message. Call `cb('rejected ...')` to filter the message.
+  precondition?: (cb: (error: unknown, passOrFail: boolean) => void) => void
   preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
   onEvents?: [
     event: QueueEvent,
     listener: (id: string, error: string) => void
   ][]
-  storage?: StoreConfig
+  // TODO: implement store config for the queue
+  // storage?: StoreConfig
   concurrent?: number // Allows more than one message to be processed assynchronously if > 1. Defaults to 1.
   maxTimeout?: number // Number of milliseconds before a task is considered timed out. Defaults to 10x1000 = 10 seconds
   afterProcessDelay?: number // Number of milliseconds to delay before processing the next msg in queu. Defaults to 1.
@@ -122,6 +127,7 @@ export type AckConfig = {
     | 'AE' // Application Error
     | 'AR' // Application Reject
   // A Store configuration to save persistent messages
+  text?: string // Text to use in ACK MSA.3
   msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // returns the ack message to send
 }
 
@@ -270,4 +276,11 @@ export type RunRoutesFunc = <
   msg: Msg
 ) => Promise<boolean>
 
-export type RunRouteFunc = (route: RouteFlow[], msg: Msg) => Promise<boolean>
+export type RunRouteFunc = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channelId: string | number,
+  route: RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[],
+  msg: Msg
+) => Promise<boolean>

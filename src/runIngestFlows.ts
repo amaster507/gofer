@@ -53,6 +53,15 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
       } else {
         const storeConfig = step as StoreConfig
         store(storeConfig, msg)
+          ?.then((res) =>
+            console.log(
+              `${res ? 'Stored' : 'Failed to store'} msg: ${msg.get('MSH-10')}`
+            )
+          )
+          .catch((e) => {
+            console.warn('Failed to store msg: ' + msg.get('MSH-10'))
+            console.warn(e)
+          }) || false
       }
     } else if (typeof step === 'function') {
       if (filtered) {

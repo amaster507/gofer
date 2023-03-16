@@ -1,7 +1,7 @@
 import net from 'net'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
-import { addToQueue } from './queue'
+import { mapOptions, queue } from './queue'
 import { doAck } from './doAck'
 
 export const tcpServer = <
@@ -20,7 +20,7 @@ export const tcpServer = <
     maxConnections,
   } = channel.source.tcp
   const id = channel.id
-  const queue = channel.source.queue
+  const queueConfig = channel.source.queue
   const server = net.createServer({ allowHalfOpen: false })
   if (maxConnections !== undefined) server.setMaxListeners(maxConnections)
   server.listen(port, host, () => {
@@ -74,9 +74,17 @@ export const tcpServer = <
       const msg = new Msg(hl7)
       if (channel.verbose)
         console.log('Received HL7 msg id: ', msg.get('MSH-10.1'))
-      if (queue) {
-        socket.write(SoM + doAck(msg).toString() + EoM + CR)
-        addToQueue(`${id}.source`, queue, (msg) => ingestMessage(msg))(msg)
+      console.log({ queueConfig })
+      if (queueConfig) {
+        console.log(`Utilizing queue ${id}.source`)
+        socket.write(SoM + doAck(msg, { text: 'Queued' }).toString() + EoM + CR)
+        queue(
+          `${id}.source`,
+          (msg) => ingestMessage(msg),
+          undefined,
+          msg,
+          mapOptions(queueConfig)
+        )
       } else {
         ingestMessage(msg, (ack: Msg) => {
           socket.write(SoM + ack.toString() + EoM + CR)
