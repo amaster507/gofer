@@ -3,6 +3,8 @@ import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
 import { QueueData } from './queue'
 
+export type MaybePromise<T> = Promise<T> | T
+
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
   T,
   Exclude<keyof T, Keys>
@@ -22,6 +24,14 @@ type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
 
 export type RequiredProperties<T, P extends keyof T> = Omit<T, P> &
   Required<Pick<T, P>>
+
+export type OnlyOptional<T> = {
+  [K in keyof T as T[K] extends Required<T>[K] ? never : K]: T[K]
+}
+
+export type OnlyRequired<T> = {
+  [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K]
+}
 
 interface ITcpConfig {
   host: string

@@ -3,6 +3,7 @@ import {
   ChannelConfig,
   Ingestion,
   IngestionFlow,
+  MaybePromise,
   Route,
   RouteFlow,
   RouteFlowNamed,
@@ -158,3 +159,6 @@ export const coerceStrictTypedChannels = (
     return stronglyTypedChannel
   })
 }
+
+export const promisify = <D>(data: MaybePromise<D>) =>
+  new Promise<D>((res) => res(data))
