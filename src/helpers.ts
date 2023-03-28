@@ -162,3 +162,10 @@ export const coerceStrictTypedChannels = (
 
 export const promisify = <D>(data: MaybePromise<D>) =>
   new Promise<D>((res) => res(data))
+
+export const allPass = (res: Record<string, boolean>) =>
+  Object.values(res).every((v) => v)
+export const atLeastOne = (res: Record<string, boolean>) =>
+  Object.values(res).length > 0
+export const atLeastOnePass = (res: Record<string, boolean>) =>
+  Object.values(res).some((v) => v)

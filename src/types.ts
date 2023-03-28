@@ -1,7 +1,6 @@
-import { QueueEvent } from 'better-queue'
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
-import { QueueData } from './queue'
+import { QueueEvents } from './queue'
 
 export type MaybePromise<T> = Promise<T> | T
 
@@ -51,21 +50,20 @@ export interface Queue<T = Msg> {
   // TODO: `id` function is limited to only root key of T, change this to take the data and return the exact id.
   // id?: keyof T | ((task: T, cb: (error: any, id: keyof T | { id: string }) => void) => void) |  ((task: T, cb: (error: any, id: keyof T) => void) => void) // used to uniquely identify the items in queue
   id?: (msg: T) => string | undefined // used to uniquely identify the items in queue
-  filterQueue?: (
-    msg: QueueData<T>,
-    cb: (error: null | unknown, msg: QueueData<T>) => void
-  ) => void // Used to conditionally filter what messages are allowed to enter the queue. call, `cb(null, msg)` to pass through message. Call `cb('rejected ...')` to filter the message.
+  filterQueue?: (msg: T) => boolean | Promise<boolean> // Used to conditionally filter what messages are allowed to enter the queue. Return true to pass the message through to the queue, false to drop it. If undefined, then all messages are allowed.
   precondition?: (cb: (error: unknown, passOrFail: boolean) => void) => void
   preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
   onEvents?: [
-    event: QueueEvent,
-    listener: (id: string, error: string) => void
+    event: QueueEvents,
+    listener: (id: string, error?: string) => void
   ][]
   // TODO: implement store config for the queue
   // storage?: StoreConfig
   concurrent?: number // Allows more than one message to be processed assynchronously if > 1. Defaults to 1.
   maxTimeout?: number // Number of milliseconds before a task is considered timed out. Defaults to 10x1000 = 10 seconds
   afterProcessDelay?: number // Number of milliseconds to delay before processing the next msg in queu. Defaults to 1.
+  rotate?: boolean // Rotate the queue moving a failed message to the end of the queu. Defaults to false
+  verbose?: boolean // Log messages to console. Defaults to false
 }
 
 export type TcpConfig<T extends 'I' | 'O' = 'I'> = T extends 'I'
