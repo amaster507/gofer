@@ -1,7 +1,8 @@
 import { StoreConfig } from 'gofer-stores'
 import { doAck } from './doAck'
+import { mapOptions } from './helpers'
 import { store } from './initStores'
-import { mapOptions, queue } from './queue'
+import { queue } from './queue'
 import { tcpClient } from './tcpClient'
 import { RunRouteFunc, RunRoutesFunc, TcpConfig } from './types'
 

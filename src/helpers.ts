@@ -1,9 +1,12 @@
+import Msg from 'ts-hl7'
 import { genId } from './genId'
+import { QueueOptions } from './queue'
 import {
   ChannelConfig,
   Ingestion,
   IngestionFlow,
   MaybePromise,
+  Queue,
   Route,
   RouteFlow,
   RouteFlowNamed,
@@ -169,3 +172,31 @@ export const atLeastOne = (res: Record<string, boolean>) =>
   Object.values(res).length > 0
 export const atLeastOnePass = (res: Record<string, boolean>) =>
   Object.values(res).some((v) => v)
+
+const removeUndefined = <T extends Record<string, unknown>>(obj: T): T => {
+  const newObj = { ...obj }
+  Object.keys(newObj).forEach(
+    (k) => newObj[k] === undefined && delete newObj[k]
+  )
+  return newObj
+}
+
+export const mapOptions = (opt: Queue): QueueOptions<Msg> => {
+  return removeUndefined({
+    maxRetries: opt.retries,
+    rotate: opt.rotate,
+    maxTimeout: opt.maxTimeout,
+    sleep: opt.interval,
+    verbose: opt.verbose,
+    id: opt.id,
+    // filter: opt.filterQueue,
+    // precondition: opt.precondition,
+    // preconditionInterval: opt.preconditionRetryTimeout,
+    onEvents: opt.onEvents,
+    stringify: opt.stringify,
+    parse: opt.parse,
+    store: opt.store,
+    // concurrency: opt.concurrent,
+    // afterProcess: opt.afterProcessDelay,
+  })
+}

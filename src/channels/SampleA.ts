@@ -1,3 +1,4 @@
+import Msg from 'ts-hl7'
 import { ChannelConfig } from '../types'
 
 const SampleA: ChannelConfig = {
@@ -9,38 +10,38 @@ const SampleA: ChannelConfig = {
       port: 9002,
     },
     queue: {
+      verbose: false,
       onEvents: [
-        ['task_queued', (id, ...rest) => console.log(`Queued ${id}: ${rest}`)],
         [
-          'task_accepted',
-          (id, ...rest) => console.log(`Accepted ${id}: ${rest}`),
+          'onQueue',
+          (id, err) => console.log(`Queued ${id}: ${JSON.stringify({ err })}`),
         ],
         [
-          'task_started',
-          (id, ...rest) => console.log(`Started ${id}: ${rest}`),
+          'onStart',
+          (id, err) => console.log(`Started ${id}: ${JSON.stringify({ err })}`),
         ],
         [
-          'task_finish',
-          (id, ...rest) => console.log(`Finished ${id}: ${rest}`),
-        ],
-        ['task_failed', (id, ...rest) => console.log(`Failed ${id}: ${rest}`)],
-        [
-          'task_progress',
-          (id, ...rest) => console.log(`Progress ${id}: ${rest}`),
+          'onSuccess',
+          (id, err) =>
+            console.log(`Finished ${id}: ${JSON.stringify({ err })}`),
         ],
         [
-          'batch_finish',
-          (id, ...rest) => console.log(`Batch Finished ${id}: ${rest}`),
+          'onRetry',
+          (id, err) => console.log(`Retry ${id}: ${JSON.stringify({ err })}`),
         ],
         [
-          'batch_failed',
-          (id, ...rest) => console.log(`Batch Failed ${id}: ${rest}`),
+          'onDrain',
+          (id, err) => console.log(`Drain ${id}: ${JSON.stringify({ err })}`),
         ],
         [
-          'batch_progress',
-          (id, ...rest) => console.log(`Batch Progress ${id}: ${rest}`),
+          'onFail',
+          (id, err) => console.log(`Failed ${id}: ${JSON.stringify({ err })}`),
         ],
       ],
+      store: 'file',
+      id: (msg) => msg.get('MSH-10.1') as string | undefined,
+      stringify: (msg) => msg.toString(),
+      parse: (msg) => new Msg(msg),
     },
   },
   ingestion: [
@@ -49,15 +50,15 @@ const SampleA: ChannelConfig = {
         organization: 'My Organization',
       },
     },
-    {
-      surreal: {
-        table: '$MSH-9.1',
-        namespace: 'MyNamespace',
-        database: '$MSH-3',
-        uri: 'http://10.3.54.148:8000/rpc',
-        id: '$MSH-10',
-      },
-    },
+    // {
+    //   surreal: {
+    //     table: '$MSH-9.1',
+    //     namespace: 'MyNamespace',
+    //     database: '$MSH-3',
+    //     uri: 'http://10.3.54.148:8000/rpc',
+    //     id: '$MSH-10',
+    //   },
+    // },
   ],
   routes: [[{ file: {} }]],
 }

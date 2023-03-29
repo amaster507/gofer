@@ -64,6 +64,9 @@ export interface Queue<T = Msg> {
   afterProcessDelay?: number // Number of milliseconds to delay before processing the next msg in queu. Defaults to 1.
   rotate?: boolean // Rotate the queue moving a failed message to the end of the queu. Defaults to false
   verbose?: boolean // Log messages to console. Defaults to false
+  store: 'file' | 'memory'
+  stringify?: (msg: T) => string
+  parse?: (msg: string) => T
 }
 
 export type TcpConfig<T extends 'I' | 'O' = 'I'> = T extends 'I'

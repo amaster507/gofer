@@ -1,8 +1,9 @@
 import net from 'net'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
-import { mapOptions, queue } from './queue'
+import { queue } from './queue'
 import { doAck } from './doAck'
+import { mapOptions } from './helpers'
 
 export const tcpServer = <
   Filt extends 'O' | 'F' | 'B' = 'B',

@@ -1,18 +1,20 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { promisify } from '../helpers'
 import { OnlyOptional } from '../types'
-import { Queue as TQueue } from '../types'
+import { QueueMemoryStore } from './memoryStore'
+import { QueueFileStore } from './fileStore'
 
 type ProcessFunction<T> = (task: T) => boolean | Promise<boolean>
 
 export type QueueEvents =
   | 'onQueue'
+  | 'onStart'
   | 'onSuccess'
   | 'onRetry'
-  | 'onFailed'
+  | 'onFail'
   | 'onDrain'
 
-interface QueueOptions {
+export interface QueueOptions<T> {
   // the number of times to retry a failed task
   maxRetries?: number
   // whether to rotate a failed task to the end of the queue or keep it at the front
@@ -30,40 +32,43 @@ interface QueueOptions {
   allowUndefined?: boolean
   // log verbose messages
   verbose?: boolean
+  // a function to extract the id from a task
+  id?: (task: T) => string | undefined
+  // determine where to store the queue
+  // TODO: support other stores
+  store?: 'memory' | 'file'
+  // stringify function if needed for store used
+  stringify?: (task: T) => string
+  // parse function if needed for store used
+  parse?: (task: string) => T
 }
 
-export const mapOptions = (opt: TQueue): QueueOptions => {
-  return {
-    maxRetries: opt.retries,
-    rotate: opt.rotate,
-    maxTimeout: opt.maxTimeout,
-    sleep: opt.interval,
-    verbose: opt.verbose,
-    // id: opt.id,
-    // filter: opt.filterQueue,
-    // precondition: opt.precondition,
-    // preconditionInterval: opt.preconditionRetryTimeout,
-    onEvents: opt.onEvents,
-    // concurrency: opt.concurrent,
-    // afterProcess: opt.afterProcessDelay,
-  }
-}
-
-interface ITask<T> {
+export interface ITask<T> {
   id?: string
   task: T
 }
 
+export interface IQueueStore<T> {
+  check: () => Promise<boolean>
+  next: () => Promise<string | undefined>
+  get: (id?: string) => Promise<ITask<T>>
+  remove: ({ id }: { id: string }) => Promise<boolean>
+  push: (props: Required<ITask<T>>) => Promise<[status: boolean, id: string]>
+  rotate: () => Promise<boolean>
+  size: () => Promise<number>
+  clear: () => Promise<boolean>
+}
+
 class Queue<T> {
-  private timeout: NodeJS.Timeout | undefined
+  public queueId: string
+  private interval: NodeJS.Timer | undefined
   private lastId: string | undefined
   private retryCount = 0
-  private options: Required<QueueOptions>
+  private options: Required<QueueOptions<T>>
   private process: ProcessFunction<T>
-  private store: Record<string, T> = {}
+  private Store: IQueueStore<T>
   private queuedIds = new Set<string>()
-  private queuedOrd: string[] = []
-  private defaultOptions: Required<OnlyOptional<QueueOptions>> = {
+  private defaultOptions: Required<OnlyOptional<QueueOptions<T>>> = {
     maxRetries: Infinity,
     rotate: false,
     maxTimeout: 10 * 1000,
@@ -71,10 +76,85 @@ class Queue<T> {
     allowUndefined: false,
     verbose: false,
     onEvents: [],
+    id: () => {
+      const id = randomUUID()
+      this.log(`No id function provided, generating random id: ${id}`)
+      return id
+    },
+    store: 'memory',
+    stringify: (task) => JSON.stringify(task),
+    parse: (task) => JSON.parse(task),
   }
+  private log = (msg: unknown) =>
+    this.options.verbose ? console.log(msg) : null
+  constructor(
+    id: string,
+    process: ProcessFunction<T>,
+    options: QueueOptions<T>
+  ) {
+    this.queueId = id
+    this.options = {
+      ...this.defaultOptions,
+      ...options,
+    }
+    this.log(`defaultOptions: ${JSON.stringify(this.defaultOptions)}`)
+    this.log(`constructor options: ${JSON.stringify(options)}`)
+    this.log(`Queue constructed with options: ${JSON.stringify(this.options)}`)
+    this.process = process
+    // TODO: support other stores
+    if (this.options.store === 'file') {
+      this.Store = new QueueFileStore<T>({
+        id,
+        log: this.log,
+        stringify: this.options.stringify,
+        parse: this.options.parse,
+      })
+    } else if (this.options.store === 'memory') {
+      this.Store = new QueueMemoryStore<T>({ log: this.log })
+    } else {
+      this.Store = new QueueMemoryStore<T>({ log: this.log })
+    }
+    this.main()
+  }
+  private next = async (): Promise<string> =>
+    promisify(this.Store.next()).then((id) => {
+      this.log(`Queue next: ${JSON.stringify({ id })}`)
+      if (id === undefined) {
+        this.doEvent('onDrain', '', 'Queue drained')
+        throw new Error('No tasks in queue')
+      }
+      return id
+    })
+  public push = ({ id, task }: ITask<T>) => {
+    if (!id) {
+      try {
+        id = this.options.id(task)
+      } catch (e: unknown) {
+        this.log(
+          `Queue options.id function threw an error: ${JSON.stringify(e)}`
+        )
+      }
+    }
+    if (!id) {
+      this.log(
+        `Queue options.id function did not return an id, generated: ${id}`
+      )
+      id = randomUUID()
+    }
+    return this.Store.push({ id, task }).then((res) => {
+      this.start()
+      return res
+    })
+  }
+  public size = () => this.Store.size()
   private main: () => Promise<void> = async () => {
-    this.timeout = setTimeout(() => {
-      this.getNextId()
+    this.interval = setInterval(async () => {
+      const size = await this.size()
+      if (size === 0) {
+        this.quit()
+        return null
+      }
+      this.next()
         .then((id) => {
           if (id === this.lastId) {
             this.retryCount++
@@ -83,33 +163,43 @@ class Queue<T> {
             this.retryCount = 0
           }
           this.lastId = id
-          this.getTask({ id }).then(({ task }) => {
+          this.Store.get(id).then(({ task }) => {
+            this.log(`Starting task ${id}...`)
+            this.doEvent('onStart', id)
             this.do(task).then((comp) => {
+              this.log(
+                `Task ${id} completed with status: ${JSON.stringify({ comp })}`
+              )
               if (comp) {
                 this.doEvent('onSuccess', id)
-                return this.removeTask({ id })
+                this.log(`Removing task ${id}...`)
+                return this.Store.remove({ id })
               }
+              this.log(`Task ${id} failed!`)
+              this.doEvent('onFail', id, 'Task failed')
               if (this.options.rotate) {
-                return this.rotate()
+                this.log(`Rotating the queue...`)
+                return this.Store.rotate()
               }
               return true
             })
           })
         })
         .catch((err: unknown) => {
-          this.doEvent('onFailed', '', JSON.stringify(err))
-          console.error(err)
+          this.log(`Error caught: ${err}`)
+          this.doEvent('onFail', '', JSON.stringify(err))
         })
     }, this.options.sleep)
   }
   public start = (): void => {
-    if (this.timeout) {
-      console.warn('Queue already started! Ignoring start request.')
+    if (this.interval) {
+      this.log('Queue already started! Ignoring start request.')
       return
     }
     this.main()
   }
   private doEvent = (event: QueueEvents, id: string, error?: string) => {
+    this.log(`Calling event handlers for event: "${event}" with id: "${id}"`)
     return this.options.onEvents
       .filter(([on]) => on === event)
       .map(([, listener]) => {
@@ -118,102 +208,21 @@ class Queue<T> {
   }
   public quit = (): void => {
     if (this.queuedIds.size !== 0) {
-      console.warn(
+      this.log(
         `Closing queue with ${this.queuedIds.size} tasks left! These tasks will be lost if the process is stopped or killed.`
       )
     }
-    if (this.timeout) {
-      clearTimeout(this.timeout)
+    this.log(`Closing queue...`)
+    if (this.interval) {
+      clearInterval(this.interval)
     }
-    this.timeout = undefined
+    this.log(`Queue closed!`)
+    this.interval = undefined
   }
-  constructor(process: ProcessFunction<T>, options: QueueOptions) {
-    this.options = {
-      ...this.defaultOptions,
-      ...options,
-    }
-    this.process = process
-    this.main()
+  private do = (task: T) => {
+    this.log(`Processing task: ${JSON.stringify(task)}`)
+    return promisify(this.process(task))
   }
-  private getNextId = (): Promise<string> =>
-    new Promise((res, rej) => {
-      if (!this.check()) {
-        this.doEvent('onFailed', '', 'Queue is unbalanced!')
-        rej('Queue is unbalanced!')
-      }
-      if (this.size) {
-        res(this.queuedOrd[0])
-      }
-      this.doEvent('onQueue', '', 'Queue is empty.')
-      return rej('No tasks in queue')
-    })
-  public getTask = ({ id }: Pick<ITask<T>, 'id'>): Promise<ITask<T>> =>
-    new Promise<ITask<T>>(async (res, rej) => {
-      if (!id) {
-        id = await this.getNextId()
-      }
-      const task = this.store[id]
-      if (task === undefined) {
-        return rej('Task not found')
-      }
-      res({ id, task })
-    })
-  public removeTask = ({
-    id,
-  }: Pick<Required<ITask<T>>, 'id'>): Promise<boolean> =>
-    new Promise((res) => {
-      // TODO: emit task removed event
-      // const task = this.store[name]
-      // this.emit('taskRemoved', id, task)
-      delete this.store[id]
-      this.queuedIds.delete(id)
-      this.queuedOrd = this.queuedOrd.filter((i) => i !== id)
-      res(true)
-    })
-  private addTask = ({
-    id,
-    task,
-  }: Pick<Required<ITask<T>>, 'id' | 'task'>): Promise<
-    [status: boolean, id: string]
-  > =>
-    new Promise((res) => {
-      this.store[id] = task
-      this.queuedIds.add(id)
-      this.queuedOrd.push(id)
-      this.doEvent('onQueue', id)
-      res([true, id])
-    })
-  public rotate = (): Promise<boolean> =>
-    new Promise((res, rej) => {
-      // move the first item in the this.queuedOrd to the end
-      const id = this.queuedOrd.shift()
-      if (!id) {
-        return rej('No tasks in queue')
-      }
-      this.queuedOrd.push(id)
-      res(true)
-    })
-  public push = ({
-    id,
-    task,
-  }: ITask<T>): Promise<[status: boolean, id: string]> =>
-    new Promise((res) => {
-      if (!id) {
-        id = randomUUID()
-      }
-      res(this.addTask({ id, task }))
-    })
-  private do = (task: T) => promisify(this.process(task))
-  private check = () =>
-    this.size === this.store.length && this.size === this.queuedOrd.length
-  public clear = () =>
-    new Promise((res) => {
-      this.store = {}
-      this.queuedIds.clear()
-      this.queuedOrd = []
-      res(true)
-    })
-  public size = this.queuedIds.size
 }
 
 const queues: Record<string, Queue<unknown>> = {}
@@ -227,7 +236,7 @@ export const queue = <T>(
   process: ProcessFunction<T>,
   messageId?: string,
   message?: T,
-  options: QueueOptions = {}
+  options: QueueOptions<T> = {}
 ) => {
   let q: Queue<T> | undefined = undefined
   if (queues[queueId]) {
@@ -235,7 +244,7 @@ export const queue = <T>(
   } else {
     if (options.verbose)
       console.log(`Queue ${queueId} does not exist, creating new queue.`)
-    q = new Queue<T>(process, options)
+    q = new Queue<T>(queueId, process, options)
     queues[queueId] = q as Queue<unknown>
   }
   if (message || options.allowUndefined) {
