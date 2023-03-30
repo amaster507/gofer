@@ -4,7 +4,7 @@ import { mapOptions } from './helpers'
 import { store } from './initStores'
 import { queue } from './queue'
 import { tcpClient } from './tcpClient'
-import { RunRouteFunc, RunRoutesFunc, TcpConfig } from './types'
+import { Connection, RunRouteFunc, RunRoutesFunc } from './types'
 
 export const runRoutes: RunRoutesFunc = async (channel, msg) => {
   const routes = channel?.routes ?? []
@@ -15,7 +15,22 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
         return new Promise<boolean>((res) => {
           queue(
             `${channel.id}.route.${route.id}`,
-            (msg) => runRoute(channel.id, route.flows, msg),
+            (msg) => {
+              return new Promise((res) => {
+                runRoute(channel.id, route.flows, msg, {
+                  verbose: channel.verbose ?? false,
+                })
+                  .then((accepted) => {
+                    if (!accepted && channel.verbose)
+                      console.log('message filtered')
+                    res(true)
+                  })
+                  .catch((err: unknown) => {
+                    if (channel.verbose) console.error(err)
+                    res(false)
+                  })
+              })
+            },
             undefined,
             msg,
             options
@@ -23,14 +38,20 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
           return res(true)
         })
       }
-      return runRoute(channel.id, route.flows, msg)
+      return runRoute(channel.id, route.flows, msg, {
+        verbose: channel.verbose ?? false,
+      })
     }) || []
   ).then((res) => !res.some((r) => !r))
 }
 
-export const runRoute: RunRouteFunc = async (channelId, route, msg) => {
+export const runRoute: RunRouteFunc = async (
+  channelId,
+  route,
+  msg,
+  { verbose }
+) => {
   let filtered = false
-
   const flows: (boolean | Promise<boolean>)[] = []
   let flowIndex = 0
   for (const namedFlow of route) {
@@ -50,7 +71,8 @@ export const runRoute: RunRouteFunc = async (channelId, route, msg) => {
     }
     if (typeof flow === 'object') {
       if (flow.hasOwnProperty('tcp')) {
-        const tcpConfig = flow as unknown as TcpConfig<'O'>
+        const { tcp: tcpConfig } = flow as Connection<'O'>
+        if (verbose) console.log(`tcpConfig: ${JSON.stringify(tcpConfig)}`)
         if (namedFlow.queue) {
           const queyConfig = namedFlow.queue
           /**
@@ -80,8 +102,9 @@ export const runRoute: RunRouteFunc = async (channelId, route, msg) => {
         flows.push(true)
         continue
       }
-      const storeConfig = flow as StoreConfig
-      flows.push(store(storeConfig, msg) ?? false)
+      const storeConfig = { ...flow } as StoreConfig & { kind?: 'store' }
+      delete storeConfig.kind
+      flows.push(store(storeConfig as StoreConfig, msg) ?? false)
       continue
     }
     console.log('FIXME: Unknown flow type not yet implemented')

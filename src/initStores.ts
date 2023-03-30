@@ -13,40 +13,25 @@ export const initStores = <
 ) => {
   const routeStores: StoreConfig[] = []
   config.forEach((channel) => {
-    // TODO: also implement source db initialization
-    routeStores.push(
-      ...(channel.ingestion
-        .map((flow) => {
-          return flow.flow
-        })
-        .filter((flow) => {
-          if (typeof flow === 'object') {
-            return Object.keys(stores).some((store) =>
-              Object.keys(flow).includes(store)
-            )
-          }
-          return false
-        }) as StoreConfig[])
-    )
-    channel.routes
-      ?.map((route) => route.flows)
-      .forEach((flows) => {
-        routeStores.push(
-          ...(flows
-            .map((flow) => flow.flow)
-            .filter((flow) => {
-              if (typeof flow === 'object') {
-                return Object.keys(stores).some((store) =>
-                  Object.keys(flow).includes(store)
-                )
-              }
-              return false
-            }) as StoreConfig[])
-        )
+    channel.ingestion.forEach((ingestion) => {
+      const flow = ingestion.flow
+      if (typeof flow === 'object' && flow.kind === 'store') {
+        const storeConfig = { ...flow } as { kind?: 'store' } & StoreConfig
+        delete storeConfig.kind
+        routeStores.push(storeConfig as StoreConfig)
+      }
+    })
+    channel.routes?.forEach((route) => {
+      route.flows.forEach((flow) => {
+        const config = flow.flow
+        if (typeof config === 'object' && config.kind === 'store') {
+          const storeConfig = { ...config } as { kind?: 'store' } & StoreConfig
+          delete storeConfig.kind
+          routeStores.push(storeConfig as StoreConfig)
+        }
       })
-    return routeStores
+    })
   })
-
   routeStores.forEach((storeConfig) => {
     const STORE = Object.keys(storeConfig)[0] as keyof typeof storeConfig
     if (STORE !== undefined) {
@@ -61,5 +46,16 @@ export const initStores = <
 export const getStore = (config: StoreConfig): Store | undefined =>
   hashedStores?.[hash(config)]
 
-export const store = (config: StoreConfig, msg: Msg) =>
-  getStore(config)?.store(msg)
+export const store = (
+  config: StoreConfig & { kind?: string },
+  msg: Msg
+): Promise<boolean> => {
+  const c = { ...config }
+  delete c.kind
+  return new Promise<boolean>((res, rej) => {
+    const hashedStore = getStore(c)
+    if (hashedStore === undefined)
+      return rej('Store not found from initialized hashed stores')
+    res(hashedStore.store(msg))
+  })
+}

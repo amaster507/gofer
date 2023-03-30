@@ -5,11 +5,13 @@ const SampleA: ChannelConfig = {
   verbose: true,
   name: 'Sample A',
   source: {
+    kind: 'tcp',
     tcp: {
       host: '0.0.0.0',
       port: 9002,
     },
     queue: {
+      kind: 'queue',
       verbose: false,
       onEvents: [
         [
@@ -46,21 +48,13 @@ const SampleA: ChannelConfig = {
   },
   ingestion: [
     {
+      kind: 'ack',
       ack: {
         organization: 'My Organization',
       },
     },
-    // {
-    //   surreal: {
-    //     table: '$MSH-9.1',
-    //     namespace: 'MyNamespace',
-    //     database: '$MSH-3',
-    //     uri: 'http://10.3.54.148:8000/rpc',
-    //     id: '$MSH-10',
-    //   },
-    // },
   ],
-  routes: [[{ file: {} }]],
+  routes: [[{ kind: 'store', file: {} }]],
 }
 
 export default SampleA

@@ -60,7 +60,7 @@ export const routeFlowObjectify = (
   verbose = false
 ): RouteFlowNamed<'B', 'B'>[] => {
   return flows.map((flow) => {
-    if (typeof flow === 'object' && flow.hasOwnProperty('flow')) {
+    if (typeof flow === 'object' && flow.kind === 'flow') {
       flow = flow as RouteFlowNamed<'B', 'B'>
       if (flow?.id === undefined) {
         const flowId = genId()
@@ -76,6 +76,7 @@ export const routeFlowObjectify = (
     if (verbose)
       console.log(`Route was missing the id. Generated id: ${flowId}`)
     return {
+      kind: 'flow',
       id: flowId,
       flow: flow as RouteFlow<'B', 'B'>,
     }
@@ -106,6 +107,7 @@ export const routesObjectify = (
         `Channel ${channel.name} (${channel.id}) had an route without an id. Generated id: ${routeId}`
       )
     return {
+      kind: 'route',
       id: routeId,
       flows: routeFlowObjectify(
         route as (RouteFlow | RouteFlowNamed)[],

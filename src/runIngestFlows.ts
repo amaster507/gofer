@@ -51,8 +51,9 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
         msg = m
         filtered = f
       } else {
-        const storeConfig = step as StoreConfig
-        store(storeConfig, msg)
+        const storeConfig = { ...step } as StoreConfig & { kind?: 'store' }
+        delete storeConfig.kind
+        store(storeConfig as StoreConfig, msg)
           ?.then((res) =>
             console.log(
               `${res ? 'Stored' : 'Failed to store'} msg: ${msg.get('MSH-10')}`
