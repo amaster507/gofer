@@ -1,4 +1,6 @@
 import { StoreConfig } from 'gofer-stores'
+import handelse from 'handelse'
+import Msg from 'ts-hl7'
 import { doAck } from './doAck'
 import { mapOptions } from './helpers'
 import { store } from './initStores'
@@ -17,16 +19,19 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
             `${channel.id}.route.${route.id}`,
             (msg) => {
               return new Promise((res) => {
-                runRoute(channel.id, route.flows, msg, {
+                runRoute(channel.id, route.id, route.flows, msg, {
                   verbose: channel.verbose ?? false,
                 })
-                  .then((accepted) => {
-                    if (!accepted && channel.verbose)
-                      console.log('message filtered')
+                  .then(() => {
+                    // no matter if the message is filtered or not return true that the message was processed.
                     res(true)
                   })
-                  .catch((err: unknown) => {
-                    if (channel.verbose) console.error(err)
+                  .catch((error: unknown) => {
+                    handelse.go(`gofer:${channel.id}.onError`, {
+                      error: error,
+                      channe: channel.id,
+                      route: route.id,
+                    })
                     res(false)
                   })
               })
@@ -38,7 +43,7 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
           return res(true)
         })
       }
-      return runRoute(channel.id, route.flows, msg, {
+      return runRoute(channel.id, route.id, route.flows, msg, {
         verbose: channel.verbose ?? false,
       })
     }) || []
@@ -47,34 +52,70 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
 
 export const runRoute: RunRouteFunc = async (
   channelId,
+  routeId,
   route,
   msg,
   { verbose }
 ) => {
+  handelse.go(`gofer:${channelId}.onRouteStart`, {
+    msg,
+    channel: channelId.toString(),
+    route: route.toString(),
+  })
   let filtered = false
   const flows: (boolean | Promise<boolean>)[] = []
-  let flowIndex = 0
+  const doFilterTransform = (
+    msg: Msg,
+    flow: (msg: Msg) => boolean | Msg,
+    flowId: string | number
+  ) => {
+    const filterOrTransform = flow(msg)
+    if (typeof filterOrTransform === 'boolean') {
+      if (!filterOrTransform)
+        handelse.go(`gofer:${channelId}.onFilter`, {
+          msg,
+          channel: channelId,
+          route: routeId,
+          flow: flowId,
+        })
+      filtered = !filterOrTransform
+      flows.push(true)
+    } else {
+      handelse.go(`gofer:${channelId}.onTransform`, {
+        pre: msg,
+        post: filterOrTransform,
+        channel: channelId,
+        route: routeId,
+        flow: flowId,
+      })
+    }
+  }
   for (const namedFlow of route) {
-    flowIndex++
     const flow = namedFlow.flow
     if (filtered) return false
     if (typeof flow === 'function') {
-      const filterOrTransform = flow(msg)
-      if (typeof filterOrTransform === 'boolean') {
-        filtered = !filterOrTransform
-        flows.push(true)
-        continue
-      }
-      msg = filterOrTransform
-      flows.push(true)
+      doFilterTransform(msg, flow, namedFlow.id)
       continue
     }
     if (typeof flow === 'object') {
-      if (flow.hasOwnProperty('tcp')) {
+      if (flow.kind === 'filter') {
+        doFilterTransform(msg, flow.filter, namedFlow.id)
+        continue
+      }
+      if (flow.kind === 'transform') {
+        doFilterTransform(msg, flow.transform, namedFlow.id)
+        continue
+      }
+      if (flow.kind === 'tcp') {
         const { tcp: tcpConfig } = flow as Connection<'O'>
-        if (verbose) console.log(`tcpConfig: ${JSON.stringify(tcpConfig)}`)
+        handelse.go(`gofer:${channelId}.onLog`, {
+          log: `tcpConfig: ${JSON.stringify(tcpConfig)}`,
+          channel: channelId,
+          route: routeId,
+          flow: namedFlow.id,
+        })
         if (namedFlow.queue) {
-          const queyConfig = namedFlow.queue
+          const queueConfig = namedFlow.queue
           /**
            * NOTE: Since we are using a queue, we can't use the tcpClient response to set
            * the msg. We need to use the queue's response to set the msg.
@@ -82,14 +123,14 @@ export const runRoute: RunRouteFunc = async (
           flows.push(
             new Promise<boolean>((res) => {
               queue(
-                `${channelId}.${namedFlow.id}.tcp.${flowIndex}`,
+                `${channelId}.${namedFlow.id}.tcp`,
                 (msg) =>
                   tcpClient(tcpConfig, msg)
                     .then(() => true)
                     .catch(() => false),
                 undefined,
                 msg,
-                mapOptions(queyConfig)
+                mapOptions(queueConfig)
               )
               return res(true)
             })
@@ -102,14 +143,29 @@ export const runRoute: RunRouteFunc = async (
         flows.push(true)
         continue
       }
-      const storeConfig = { ...flow } as StoreConfig & { kind?: 'store' }
-      delete storeConfig.kind
-      flows.push(store(storeConfig as StoreConfig, msg) ?? false)
-      continue
+      if (flow.kind === 'store') {
+        const storeConfig = { ...flow } as StoreConfig & { kind?: 'store' }
+        delete storeConfig.kind
+        flows.push(store(storeConfig as StoreConfig, msg) ?? false)
+        continue
+      }
     }
-    console.log('FIXME: Unknown flow type not yet implemented')
-    console.log({ flow })
+    handelse.go(`gofer:${channelId}.onError`, {
+      error: 'unknown flow type not yet implemented',
+      channel: channelId,
+      flow: namedFlow.id.toString(),
+      route: routeId,
+    })
     return false
   }
-  return Promise.all(flows).then((res) => !res.some((r) => !r))
+  return Promise.all(flows).then((res) => {
+    const status = !res.some((r) => !r)
+    handelse.go(`gofer:${channelId}.onRouteEnd`, {
+      msg,
+      channel: channelId.toString(),
+      route: route.toString(),
+      status,
+    })
+    return status
+  })
 }

@@ -3,6 +3,7 @@ import { promisify } from '../helpers'
 import { OnlyOptional } from '../types'
 import { QueueMemoryStore } from './memoryStore'
 import { QueueFileStore } from './fileStore'
+import { onLog } from '../eventHandlers'
 
 type ProcessFunction<T> = (task: T) => boolean | Promise<boolean>
 
@@ -14,6 +15,11 @@ export type QueueEvents =
   | 'onFail'
   | 'onDrain'
 
+export type IOnEvents = [
+  event: QueueEvents,
+  listener: (id: string, queueId: string | number, error?: string) => void
+][]
+
 export interface QueueOptions<T> {
   // the number of times to retry a failed task
   maxRetries?: number
@@ -24,10 +30,7 @@ export interface QueueOptions<T> {
   // The amount of time to wait before checking the queue again after draining
   sleep?: number
   // Listeners to be called when a task is queued, succeeds, fails, or is retried
-  onEvents?: [
-    event: QueueEvents,
-    listener: (id: string, error?: string) => void
-  ][]
+  onEvents?: IOnEvents
   // Allow `undefined` messages to be pushed to the queue
   allowUndefined?: boolean
   // log verbose messages
@@ -85,8 +88,7 @@ class Queue<T> {
     stringify: (task) => JSON.stringify(task),
     parse: (task) => JSON.parse(task),
   }
-  private log = (msg: unknown) =>
-    this.options.verbose ? console.log(msg) : null
+  private log = (msg: unknown) => (this.options.verbose ? onLog.go(msg) : null)
   constructor(
     id: string,
     process: ProcessFunction<T>,
@@ -203,7 +205,7 @@ class Queue<T> {
     return this.options.onEvents
       .filter(([on]) => on === event)
       .map(([, listener]) => {
-        listener(id, error)
+        listener(id, this.queueId, error)
       })
   }
   public quit = (): void => {
@@ -243,7 +245,7 @@ export const queue = <T>(
     q = queues[queueId] as Queue<T>
   } else {
     if (options.verbose)
-      console.log(`Queue ${queueId} does not exist, creating new queue.`)
+      onLog.go(`Queue ${queueId} does not exist, creating new queue.`)
     q = new Queue<T>(queueId, process, options)
     queues[queueId] = q as Queue<unknown>
   }
@@ -253,7 +255,7 @@ export const queue = <T>(
       task: message as T,
     })
   } else if (options.verbose) {
-    console.warn(
+    onLog.go(
       `Undefined message provided for queue ${queueId}! Ignoring message.`
     )
   }

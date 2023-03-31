@@ -56,7 +56,7 @@ export interface Queue<T = Msg> {
   preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
   onEvents?: [
     event: QueueEvents,
-    listener: (id: string, error?: string) => void
+    listener: (id: string, queueId: string | number, error?: string) => void
   ][]
   // TODO: implement store config for the queue
   // storage?: StoreConfig
@@ -306,6 +306,7 @@ export type RunRouteFunc = <
   Tran extends 'O' | 'F' | 'B' = 'B'
 >(
   channelId: string | number,
+  routeId: string | number,
   route: RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[],
   msg: Msg,
   options: {

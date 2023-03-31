@@ -16,28 +16,33 @@ const SampleA: ChannelConfig = {
       onEvents: [
         [
           'onQueue',
-          (id, err) => console.log(`Queued ${id}: ${JSON.stringify({ err })}`),
+          (id, _, err) =>
+            console.log(`Queued ${id}: ${JSON.stringify({ err })}`),
         ],
         [
           'onStart',
-          (id, err) => console.log(`Started ${id}: ${JSON.stringify({ err })}`),
+          (id, _, err) =>
+            console.log(`Started ${id}: ${JSON.stringify({ err })}`),
         ],
         [
           'onSuccess',
-          (id, err) =>
+          (id, _, err) =>
             console.log(`Finished ${id}: ${JSON.stringify({ err })}`),
         ],
         [
           'onRetry',
-          (id, err) => console.log(`Retry ${id}: ${JSON.stringify({ err })}`),
+          (id, _, err) =>
+            console.log(`Retry ${id}: ${JSON.stringify({ err })}`),
         ],
         [
           'onDrain',
-          (id, err) => console.log(`Drain ${id}: ${JSON.stringify({ err })}`),
+          (id, _, err) =>
+            console.log(`Drain ${id}: ${JSON.stringify({ err })}`),
         ],
         [
           'onFail',
-          (id, err) => console.log(`Failed ${id}: ${JSON.stringify({ err })}`),
+          (id, _, err) =>
+            console.log(`Failed ${id}: ${JSON.stringify({ err })}`),
         ],
       ],
       store: 'file',

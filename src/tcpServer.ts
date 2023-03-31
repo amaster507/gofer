@@ -1,4 +1,5 @@
 import net from 'net'
+import handelse from 'handelse'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
 import { queue } from './queue'
@@ -25,33 +26,39 @@ export const tcpServer = <
   const server = net.createServer({ allowHalfOpen: false })
   if (maxConnections !== undefined) server.setMaxListeners(maxConnections)
   server.listen(port, host, () => {
-    if (channel.verbose)
-      console.log(
-        `${channel.name}(${channel.id}) Server listening on ${host}:${port}`
-      )
+    handelse.go(`gofer:${channel.id}.onLog`, {
+      log: `Server listening on ${host}:${port}`,
+      channel: channel.id,
+    })
   })
   server.on('connection', (socket) => {
     socket.setEncoding('utf8')
 
     const clientAddress = `${socket.remoteAddress}:${socket.remotePort}`
-    if (channel.verbose)
-      console.log(`New client connection from ${clientAddress}`)
+    server.listen(port, host, () => {
+      handelse.go(`gofer:${channel.id}.onLog`, {
+        log: `New client connection from ${clientAddress}`,
+        channel: channel.id,
+      })
+    })
 
     const data: Record<string, string> = {}
 
     socket.on('data', (packet) => {
-      if (channel.verbose)
-        console.log(`Received Data from Client ${clientAddress}:`)
+      handelse.go(`gofer:${channel.id}.onLog`, {
+        log: `Received Data from Client ${clientAddress}:`,
+        channel: channel.id,
+      })
       let hl7 = packet.toString()
       const f = hl7[0]
       const e = hl7[hl7.length - 1]
       const l = hl7[hl7.length - 2]
       // if beginning of a message and there is an existing partial message, then delete it
       if (f === SoM && data?.[clientAddress] !== undefined) {
-        if (channel.verbose)
-          console.log(
-            `MESSAGE LOSS: Partial message removed from ${clientAddress}`
-          )
+        handelse.go(`gofer:${channel.id}.onError`, {
+          error: `MESSAGE LOSS: Partial message removed from ${clientAddress}`,
+          channel: channel.id,
+        })
         delete data[clientAddress]
       }
       // if end of a message then see if there is a partial message to append it to.
@@ -73,18 +80,95 @@ export const tcpServer = <
         return
       }
       const msg = new Msg(hl7)
-      if (channel.verbose)
-        console.log('Received HL7 msg id: ', msg.get('MSH-10.1'))
-      console.log({ queueConfig })
+      handelse.go(`gofer:${channel.id}.onReceive`, {
+        msg,
+        channel: channel.id,
+      })
       if (queueConfig) {
-        console.log(`Utilizing queue ${id}.source`)
-        socket.write(SoM + doAck(msg, { text: 'Queued' }).toString() + EoM + CR)
+        handelse.go(`gofer:${channel.id}.onLog`, {
+          log: `Utilizing queue ${id}.source`,
+          channel: channel.id,
+        })
+        const ack = doAck(msg, { text: 'Queued' })
+        socket.write(SoM + ack.toString() + EoM + CR)
+        handelse.go(`gofer:${channel.id}.onAck`, {
+          channel: channel.id,
+          msg: msg,
+          ack: ack,
+        })
         queue(
           `${id}.source`,
           (msg) => ingestMessage(msg),
           undefined,
           msg,
-          mapOptions(queueConfig)
+          mapOptions({
+            ...queueConfig,
+            verbose:
+              queueConfig !== undefined ? queueConfig.verbose : channel.verbose,
+            /**
+             * FIXME: Need to find another way to pass these events.
+             * These handler functions are only utilized in the first time the queue
+             * class is called and then not updated after that. Need to rethink this!
+             */
+            // onEvents: [
+            //   ...(queueConfig.onEvents ?? []),
+            //   [
+            //     'onQueue',
+            //     (id, qId) => {
+            //       handelse.go(`${channel.id}.onQueue`, {
+            //         channel: channel.id,
+            //         msg: msg,
+            //         queue: qId,
+            //         id,
+            //       })
+            //     },
+            //   ],
+            //   [
+            //     'onStart',
+            //     (id, qId) => {
+            //       handelse.go(`${channel.id}.onQueueStart`, {
+            //         channel: channel.id,
+            //         msg: msg,
+            //         queue: qId,
+            //         id,
+            //       })
+            //     },
+            //   ],
+            //   [
+            //     'onRetry',
+            //     (id, qId) => {
+            //       handelse.go(`${channel.id}.onQueueRetry`, {
+            //         channel: channel.id,
+            //         msg: msg,
+            //         queue: qId,
+            //         id,
+            //       })
+            //     },
+            //   ],
+            //   [
+            //     'onFail',
+            //     (id, qId) => {
+            //       handelse.go(`${channel.id}.onQueueFail`, {
+            //         channel: channel.id,
+            //         msg: msg,
+            //         queue: qId,
+            //         id,
+            //       })
+            //     },
+            //   ],
+            //   [
+            //     'onSuccess',
+            //     (id, qId) => {
+            //       handelse.go(`${channel.id}.onQueueRemove`, {
+            //         channel: channel.id,
+            //         msg: msg,
+            //         queue: qId,
+            //         id,
+            //       })
+            //     },
+            //   ],
+            // ],
+          })
         )
       } else {
         ingestMessage(msg, (ack: Msg) => {

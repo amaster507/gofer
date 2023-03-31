@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import { onLog } from '../eventHandlers'
 
 interface CacheOptions {
   base?: string
@@ -24,7 +25,7 @@ const cache = <T = unknown>(options: CacheOptions = {}) => {
     options.base || path.dirname(require?.main?.filename ?? '') + '/cache'
   )
   const cacheDir = path.normalize(base + '/' + (options.name || 'cache'))
-  console.log({ cacheDir })
+  onLog.go({ cacheDir })
   const cacheInfinitely = !(typeof options.duration === 'number')
   const cacheDuration = options.duration ?? 0
 
