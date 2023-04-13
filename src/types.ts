@@ -177,6 +177,20 @@ export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
   ? TransformFunc
   : TransformFunc | { kind: 'transform'; transform: TransformFunc }
 
+// This is a function that can be used as a filter or transformer
+// If it returns false it will filter out the message
+// Otherwise it returns the transformed message
+type TransformFilterFunction = (msg: Msg, context: IContext) => false | Msg
+
+export type TransformOrFilterFlow<Tran extends 'O' | 'F' | 'B' = 'B'> =
+  Tran extends 'O'
+    ? { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
+    : Tran extends 'F'
+    ? TransformFilterFunction
+    :
+        | TransformFilterFunction
+        | { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
+
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
@@ -187,6 +201,7 @@ export type IngestionFlow<
   | { kind: 'ack'; ack: AckConfig }
   | FilterFlow<Filt>
   | TransformFlow<Tran>
+  | TransformOrFilterFlow<Tran>
   | ({ kind: 'store' } & StoreConfig)
 
 // O = require objectified filters/transformers
@@ -213,6 +228,7 @@ export type RouteFlow<
 > =
   | FilterFlow<Filt>
   | TransformFlow<Tran>
+  | TransformOrFilterFlow<Tran>
   | ({ kind: 'store' } & StoreConfig)
   | Connection<'O'>
 

@@ -3,7 +3,7 @@ import handelse from 'handelse'
 import { doAck } from './doAck'
 import { filterOrTransform } from './filterOrTransform'
 import { store } from './initStores'
-import { FilterFlow, IngestFunc, TransformFlow } from './types'
+import { IngestFunc } from './types'
 import { logger } from './helpers'
 
 export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
@@ -37,25 +37,34 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (step as FilterFlow<'O'>).filter,
+          step.filter,
           channel.id,
           flow.id
         )
         msg = m
         filtered = f
-      } else if (step.hasOwnProperty('transform')) {
+      } else if (step.kind === 'transformFilter') {
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (step as TransformFlow<'O'>).transform,
+          step.transformFilter,
           channel.id,
           flow.id
         )
         msg = m
         filtered = f
-      } else {
-        const storeConfig = { ...step } as StoreConfig & { kind?: 'store' }
-        delete storeConfig.kind
+      } else if (step.kind === 'transform') {
+        const [m, f] = filterOrTransform(
+          msg,
+          filtered,
+          step.transform,
+          channel.id,
+          flow.id
+        )
+        msg = m
+        filtered = f
+      } else if (step.kind === 'store') {
+        const storeConfig = { ...step }
         store(storeConfig as StoreConfig, msg)
           ?.then((res) => {
             if (res)

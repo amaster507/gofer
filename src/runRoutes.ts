@@ -107,6 +107,10 @@ export const runRoute: RunRouteFunc = async (
         doFilterTransform(msg, flow.transform, namedFlow.id)
         continue
       }
+      if (flow.kind === 'transformFilter') {
+        doFilterTransform(msg, flow.transformFilter, namedFlow.id)
+        continue
+      }
       if (flow.kind === 'tcp') {
         const { tcp: tcpConfig } = flow as Connection<'O'>
         handelse.go(`gofer:${channelId}.onLog`, {
