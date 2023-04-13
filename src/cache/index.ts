@@ -20,35 +20,39 @@ const exists = (dir: string): boolean => {
   return true
 }
 
-const cache = <T = unknown>(options: CacheOptions = {}) => {
-  const base = path.normalize(
-    options.base || path.dirname(require?.main?.filename ?? '') + '/cache'
-  )
-  const cacheDir = path.normalize(base + '/' + (options.name || 'cache'))
-  onLog.go({ cacheDir })
-  const cacheInfinitely = !(typeof options.duration === 'number')
-  const cacheDuration = options.duration ?? 0
-
-  if (!exists(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
-
-  const buildFilePath = (name: string) => {
-    return path.normalize(cacheDir + '/' + name + '.json')
+class cache<T> {
+  private options: CacheOptions
+  private base: string
+  private cacheDir: string
+  private cacheInfinitely: boolean
+  private cacheDuration: number
+  constructor(options: CacheOptions = {}) {
+    this.options = options
+    this.base = path.normalize(this.options.base || path.dirname('') + '/cache')
+    this.cacheDir = path.normalize(
+      this.base + '/' + (this.options.name || 'cache')
+    )
+    onLog.go({ cacheDir: this.cacheDir })
+    this.cacheInfinitely = !(typeof this.options.duration === 'number')
+    this.cacheDuration = this.options.duration ?? 0
+    if (!exists(this.cacheDir)) fs.mkdirSync(this.cacheDir, { recursive: true })
   }
-
-  const buildCacheEntry = <D extends T = T>(data: D) => {
+  private buildFilePath = (name: string) => {
+    return path.normalize(this.cacheDir + '/' + name + '.json')
+  }
+  private buildCacheEntry = <D extends T = T>(data: D) => {
     return {
-      cacheUntil: !cacheInfinitely
-        ? new Date().getTime() + cacheDuration
+      cacheUntil: !this.cacheInfinitely
+        ? new Date().getTime() + this.cacheDuration
         : undefined,
       data: data,
     }
   }
-
-  const put = <D extends T = T>(name: string, data: D) => {
+  public put = <D extends T = T>(name: string, data: D) => {
     return new Promise<D>((res, rej) => {
       fs.writeFile(
-        buildFilePath(name),
-        JSON.stringify(buildCacheEntry(data)),
+        this.buildFilePath(name),
+        JSON.stringify(this.buildCacheEntry(data)),
         (err) => {
           if (err != null) {
             return rej(err)
@@ -58,15 +62,16 @@ const cache = <T = unknown>(options: CacheOptions = {}) => {
       )
     })
   }
-
-  const putSync = <D extends T = T>(name: string, data: D) => {
-    fs.writeFileSync(buildFilePath(name), JSON.stringify(buildCacheEntry(data)))
+  public putSync = <D extends T = T>(name: string, data: D) => {
+    fs.writeFileSync(
+      this.buildFilePath(name),
+      JSON.stringify(this.buildCacheEntry(data))
+    )
     return data
   }
-
-  const get = <D extends T = T>(name: string): Promise<D | undefined> => {
+  public get = <D extends T = T>(name: string): Promise<D | undefined> => {
     return new Promise((res, rej) => {
-      fs.readFile(buildFilePath(name), 'utf8', (err, data) => {
+      fs.readFile(this.buildFilePath(name), 'utf8', (err, data) => {
         if (err) {
           if (err.code === 'ENOENT') return res(undefined)
           return rej(err)
@@ -75,7 +80,7 @@ const cache = <T = unknown>(options: CacheOptions = {}) => {
           const parsed = JSON.parse(data)
 
           if (parsed.cacheUntil && new Date().getTime() > parsed.cacheUntil) {
-            deleteEntry(name)
+            this.delete(name)
             return res(undefined)
           }
 
@@ -86,10 +91,9 @@ const cache = <T = unknown>(options: CacheOptions = {}) => {
       })
     })
   }
-
-  const getSync = <D extends T = T>(name: string): D | undefined => {
+  public getSync = <D extends T = T>(name: string): D | undefined => {
     let data: ReturnType<typeof JSON.parse> = undefined
-    const cacheFilePath = buildFilePath(name)
+    const cacheFilePath = this.buildFilePath(name)
     try {
       data = JSON.parse(fs.readFileSync(cacheFilePath, { encoding: 'utf8' }))
     } catch (_e: unknown) {
@@ -97,32 +101,21 @@ const cache = <T = unknown>(options: CacheOptions = {}) => {
     }
 
     if (data.cacheUntil && new Date().getTime() > data.cacheUntil) {
-      deleteEntrySync(name)
+      this.deleteEntrySync(name)
       return undefined
     }
     return data.data
   }
-
-  const deleteEntry = (name: string) => {
+  public delete = (name: string) => {
     return new Promise<void>((res, rej) => {
-      fs.unlink(buildFilePath(name), (err) => {
+      fs.unlink(this.buildFilePath(name), (err) => {
         if (err) return rej(err)
         return res()
       })
     })
   }
-
-  const deleteEntrySync = (name: string) => {
-    fs.unlinkSync(buildFilePath(name))
-  }
-
-  return {
-    put: put,
-    get: get,
-    delete: deleteEntry,
-    putSync: putSync,
-    getSync: getSync,
-    deleteSync: deleteEntrySync,
+  public deleteEntrySync = (name: string) => {
+    fs.unlinkSync(this.buildFilePath(name))
   }
 }
 

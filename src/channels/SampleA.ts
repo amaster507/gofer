@@ -1,5 +1,5 @@
 import Msg from 'ts-hl7'
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { ChannelConfig } from '../types'
 
 const SampleA: ChannelConfig = {

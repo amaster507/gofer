@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import cache from './cache'
 
-const ids = cache({
+const ids = new cache({
   base: `${__dirname}/../.cache`,
   name: 'ids',
 })
