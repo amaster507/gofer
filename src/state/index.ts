@@ -1,3 +1,4 @@
+import { isLogging } from '../helpers'
 import { ChannelConfig, RequiredProperties } from '../types'
 
 interface IFlowStat {
@@ -57,53 +58,14 @@ class State {
     flowIndex: number,
     routeIndex?: number
   ) => {
-    if (this.state?.[channelId] === undefined) {
-      console.warn(`Channel "${channelId}" not found in state`)
-      return this
-    }
-    if (type === 'ingest') {
-      if (!Array.isArray(this.state[channelId].ingestFlows)) {
-        console.warn(`Channel "${channelId}" has no ingest flows`)
-        return this
-      }
-      if ((this.state[channelId]?.ingestFlows ?? []).length < flowIndex + 1) {
-        console.warn(
-          `Channel "${channelId}" has no ingest flow at index ${flowIndex}`
-        )
-        return this
-      }
-      // ;(this.state[channelId].ingestFlows ?? [])[flowIndex] = true
-      return this
-    }
-    if (type === 'route') {
-      if (routeIndex === undefined) {
-        console.warn(
-          `Channel "${channelId}" tried to set a route flow without a route index`
-        )
-        return this
-      }
-      if (!Array.isArray(this.state[channelId].routes)) {
-        console.warn(`Channel "${channelId}" has no routes`)
-        return this
-      }
-      if ((this.state[channelId]?.routes ?? []).length < routeIndex + 1) {
-        console.warn(
-          `Channel "${channelId}" has no route at index ${routeIndex}`
-        )
-        return this
-      }
-      // if (
-      //   (this.state[channelId]?.routes ?? [])[routeIndex].length <
-      //   flowIndex + 1
-      // ) {
-      //   console.warn(
-      //     `Channel "${channelId}" has no route flow at index ${routeIndex}[${flowIndex}]`
-      //   )
-      //   return this
-      // }
-      // ;(this.state[channelId].routes ?? [])[routeIndex][flowIndex] = true
-      return this
-    }
+    console.log(
+      `TODO: implement setFlow! Tried to call with: ${{
+        channelId,
+        type,
+        flowIndex,
+        routeIndex,
+      }}`
+    )
     return this
   }
   public addChannel = <
@@ -114,7 +76,7 @@ class State {
   ) => {
     const channelId = channel.id
     if (this.state?.[channelId] !== undefined) {
-      if (channel.verbose)
+      if (isLogging('error', channel.logLevel))
         console.warn(
           `Channel "${channelId}" already exists in state. Not overwriting.`
         )

@@ -1,8 +1,11 @@
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
-import { QueueEvents } from './queue'
 
 export type MaybePromise<T> = Promise<T> | T
+
+export interface IContext {
+  logger: (log: string, logLevel?: TLogLevel) => void
+}
 
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
   T,
@@ -41,28 +44,29 @@ interface ITcpConfig {
   maxConnections?: number
 }
 
-export interface Queue<T = Msg> {
+export interface QueueConfig<T = Msg> {
   kind: 'queue'
-  interval?: number // milliseconds between retries. Defaults to 10x1000 = 10 seconds
+  // interval?: number // milliseconds between retries. Defaults to 10x1000 = 10 seconds
   // FIXME: better-queue does not currently support a queue limit.
   // limit?: number // Limit the number of messages that can be queued. Defaults to Infinity
   filo?: boolean // First In Last Out. Defaults to false
   retries?: number // Defaults to Infinity
   // TODO: `id` function is limited to only root key of T, change this to take the data and return the exact id.
   // id?: keyof T | ((task: T, cb: (error: any, id: keyof T | { id: string }) => void) => void) |  ((task: T, cb: (error: any, id: keyof T) => void) => void) // used to uniquely identify the items in queue
-  id?: (msg: T) => string | undefined // used to uniquely identify the items in queue
-  filterQueue?: (msg: T) => boolean | Promise<boolean> // Used to conditionally filter what messages are allowed to enter the queue. Return true to pass the message through to the queue, false to drop it. If undefined, then all messages are allowed.
-  precondition?: (cb: (error: unknown, passOrFail: boolean) => void) => void
-  preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
-  onEvents?: [
-    event: QueueEvents,
-    listener: (id: string, queueId: string | number, error?: string) => void
-  ][]
+  id?: (msg: T) => string // used to uniquely identify the items in queue
+  // filterQueue?: (msg: T) => boolean | Promise<boolean> // Used to conditionally filter what messages are allowed to enter the queue. Return true to pass the message through to the queue, false to drop it. If undefined, then all messages are allowed.
+  // precondition?: (cb: (error: unknown, passOrFail: boolean) => void) => void
+  // preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
+  // onEvents?: [
+  //   event: QueueEvents,
+  //   listener: (id: string, queueId: string | number, error?: string) => void
+  // ][]
   // TODO: implement store config for the queue
   // storage?: StoreConfig
   concurrent?: number // Allows more than one message to be processed assynchronously if > 1. Defaults to 1.
   maxTimeout?: number // Number of milliseconds before a task is considered timed out. Defaults to 10x1000 = 10 seconds
-  afterProcessDelay?: number // Number of milliseconds to delay before processing the next msg in queu. Defaults to 1.
+  // TODO: implement another delay option for after the process is complete before the next message is processed
+  afterProcessDelay?: number // Number of ms to to interval loop the worker checking for completion of process to begin next. Defaults to 1x1000 = 1 second.
   rotate?: boolean // Rotate the queue moving a failed message to the end of the queu. Defaults to false
   verbose?: boolean // Log messages to console. Defaults to false
   store: 'file' | 'memory'
@@ -119,7 +123,7 @@ export type Connection<T extends 'I' | 'O'> = T extends 'I' // TODO: if after fl
       | (never & { kind: 'query'; query: StoreConfig })
     ) & {
       // NOTE: by using a queue acks are positively sent when queued not when removed from queue
-      queue?: Queue
+      queue?: QueueConfig
     }
   :
       | { kind: 'tcp'; tcp: TcpConfig<T> }
@@ -142,7 +146,7 @@ export type AckConfig = {
     | 'AR' // Application Reject
   // A Store configuration to save persistent messages
   text?: string // Text to use in ACK MSA.3
-  msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // returns the ack message to send
+  msg?: (ack: Msg, msg: Msg, filtered: boolean, context: IContext) => Msg // returns the ack message to send
 }
 
 interface Tag {
@@ -150,7 +154,7 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
-type FilterFunc = (msg: Msg) => boolean
+type FilterFunc = (msg: Msg, context: IContext) => boolean
 
 // Returns true to pass through. Return false to filter out.
 // O = require objectified filters
@@ -162,7 +166,7 @@ export type FilterFlow<Filt extends 'O' | 'F' | 'B' = 'B'> = Filt extends 'O'
   ? FilterFunc
   : FilterFunc | { kind: 'filter'; filter: FilterFunc }
 
-type TransformFunc = (msg: Msg) => Msg
+type TransformFunc = (msg: Msg, context: IContext) => Msg
 
 // O = require objectified transformers
 // F = require raw function transformers
@@ -196,7 +200,7 @@ export type Ingestion<
   id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this ingestion flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify ingestion flows
-  queue?: Queue
+  queue?: QueueConfig
   flow: IngestionFlow<Filt, Tran>
 }
 
@@ -223,7 +227,7 @@ export type RouteFlowNamed<
   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this route flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify route flows
-  queue?: Queue
+  queue?: QueueConfig
   flow: RouteFlow<Filt, Tran>
 }
 
@@ -240,11 +244,14 @@ export type Route<
   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this route flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify route flows
-  queue?: Queue
+  queue?: QueueConfig
   flows: Stct extends 'S'
     ? RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[]
     : (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
 }
+
+// log levels in order of severity. If you show 'DEBUG' logs, you will also see 'INFO' logs, etc.
+export type TLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 // Filt(er) & Tran(sformer)
 // O = require objectified filters/transformers
@@ -270,7 +277,7 @@ export type ChannelConfig<
           | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
           | Route<Filt, Tran>
         )[]
-    verbose?: boolean // do extra info logging.
+    logLevel?: TLogLevel // the log level for this channel. If not provided will not log anything.
   },
   Stct extends 'S' ? 'id' : 'name'
 > // `name` here is just a placholder for default. It doesn't change anything because name is already a required field.
@@ -282,7 +289,7 @@ export type InitServers = <
   channels: ChannelConfig<Filt, Tran, 'S'>[]
 ) => void
 
-export type AckFunc = (ack: Msg) => void
+export type AckFunc = (ack: Msg, context: IContext) => void
 
 export type IngestFunc = <
   Filt extends 'O' | 'F' | 'B' = 'B',
@@ -308,8 +315,5 @@ export type RunRouteFunc = <
   channelId: string | number,
   routeId: string | number,
   route: RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[],
-  msg: Msg,
-  options: {
-    verbose: boolean
-  }
+  msg: Msg
 ) => Promise<boolean>

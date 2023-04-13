@@ -1,10 +1,21 @@
 import Msg from 'ts-hl7'
 import { AckConfig } from './types'
+import { logger } from './helpers'
 
 export const doAck = (
   msg: Msg,
   ackConfig: AckConfig = {},
-  filtered = false
+  {
+    filtered = false,
+    channelId,
+    routeId,
+    flowId,
+  }: {
+    filtered?: boolean
+    channelId: string | number
+    routeId?: string | number
+    flowId?: string | number
+  }
 ) => {
   const app = ackConfig.application ?? 'gofer ENGINE'
   const org = ackConfig.organization ?? ''
@@ -21,6 +32,13 @@ export const doAck = (
     }`
   )
   if (typeof ackConfig.msg === 'function')
-    ackMsg = ackConfig.msg(ackMsg, msg, filtered)
+    ackMsg = ackConfig.msg(ackMsg, msg, filtered, {
+      logger: logger({
+        channelId,
+        routeId,
+        flowId,
+        msg,
+      }),
+    })
   return ackMsg
 }

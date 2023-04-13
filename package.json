@@ -48,6 +48,7 @@
   },
   "homepage": "https://github.com/amaster507/gofer#readme",
   "dependencies": {
+    "gofer-queue": "^1.0.0",
     "gofer-stores": "^0.0.5",
     "graphql": "^16.6.0",
     "handelse": "^1.0.5",

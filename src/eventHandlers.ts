@@ -3,15 +3,19 @@ import { ChannelConfig } from './types'
 
 export const onError = handelse.global<Error>('gofer:error')
 onError.do((error) => {
-  console.error(`${new Date().toISOString}: [ERROR]`, error)
+  console.error(`${new Date().toISOString()}: [ERROR]`, error)
   return true
 })
+export const throwError = onError.pub
 
-export const onLog = handelse.global<unknown>('gofer:error')
+export const onLog = handelse.global<unknown>('gofer:log')
 onLog.do((log) => {
-  console.log(`${new Date().toISOString}:`, log)
+  console.log(`${new Date().toISOString()}:`, log)
   return true
 })
+export const log = (...props: unknown[]) => {
+  onLog.pub(props)
+}
 
 export const onGoferStart = handelse.global<Date>('gofer:start')
 

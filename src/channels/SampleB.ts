@@ -3,7 +3,7 @@ import { ChannelConfig } from '../types'
 
 const SampleB: ChannelConfig = {
   id: 'sample-b',
-  verbose: true,
+  logLevel: 'info',
   name: 'Sample B',
   source: {
     kind: 'tcp',

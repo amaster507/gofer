@@ -1,8 +1,9 @@
 import Msg from 'ts-hl7'
+import { randomUUID } from 'node:crypto'
 import { ChannelConfig } from '../types'
 
 const SampleA: ChannelConfig = {
-  verbose: true,
+  logLevel: 'debug',
   name: 'Sample A',
   source: {
     kind: 'tcp',
@@ -13,40 +14,40 @@ const SampleA: ChannelConfig = {
     queue: {
       kind: 'queue',
       verbose: false,
-      onEvents: [
-        [
-          'onQueue',
-          (id, _, err) =>
-            console.log(`Queued ${id}: ${JSON.stringify({ err })}`),
-        ],
-        [
-          'onStart',
-          (id, _, err) =>
-            console.log(`Started ${id}: ${JSON.stringify({ err })}`),
-        ],
-        [
-          'onSuccess',
-          (id, _, err) =>
-            console.log(`Finished ${id}: ${JSON.stringify({ err })}`),
-        ],
-        [
-          'onRetry',
-          (id, _, err) =>
-            console.log(`Retry ${id}: ${JSON.stringify({ err })}`),
-        ],
-        [
-          'onDrain',
-          (id, _, err) =>
-            console.log(`Drain ${id}: ${JSON.stringify({ err })}`),
-        ],
-        [
-          'onFail',
-          (id, _, err) =>
-            console.log(`Failed ${id}: ${JSON.stringify({ err })}`),
-        ],
-      ],
+      // onEvents: [
+      //   [
+      //     'onQueue',
+      //     (id, _, err) =>
+      //       console.log(`Queued ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      //   [
+      //     'onStart',
+      //     (id, _, err) =>
+      //       console.log(`Started ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      //   [
+      //     'onSuccess',
+      //     (id, _, err) =>
+      //       console.log(`Finished ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      //   [
+      //     'onRetry',
+      //     (id, _, err) =>
+      //       console.log(`Retry ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      //   [
+      //     'onDrain',
+      //     (id, _, err) =>
+      //       console.log(`Drain ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      //   [
+      //     'onFail',
+      //     (id, _, err) =>
+      //       console.log(`Failed ${id}: ${JSON.stringify({ err })}`),
+      //   ],
+      // ],
       store: 'file',
-      id: (msg) => msg.get('MSH-10.1') as string | undefined,
+      id: (msg) => (msg.get('MSH-10.1') as string | undefined) ?? randomUUID(),
       stringify: (msg) => msg.toString(),
       parse: (msg) => new Msg(msg),
     },

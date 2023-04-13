@@ -42,7 +42,7 @@ const transformer = (msg: Msg) => {
 
 const SampleC: ChannelConfig = {
   id: 'sample-c',
-  verbose: true,
+  logLevel: 'warn',
   name: 'Sample C',
   source: {
     // listens for messages locally on port 9003

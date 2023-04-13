@@ -4,6 +4,7 @@ import { doAck } from './doAck'
 import { filterOrTransform } from './filterOrTransform'
 import { store } from './initStores'
 import { FilterFlow, IngestFunc, TransformFlow } from './types'
+import { logger } from './helpers'
 
 export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
   let filtered = false
@@ -12,9 +13,19 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
     if (typeof step === 'object') {
       if (step.kind === 'ack') {
         const ackConfig = step.ack
-        const ackMsg = doAck(msg, ackConfig, filtered)
+        const ackMsg = doAck(msg, ackConfig, {
+          filtered,
+          channelId: channel.id,
+          flowId: flow.id,
+        })
         if (typeof ack === 'function') {
-          ack(ackMsg)
+          ack(ackMsg, {
+            logger: logger({
+              channelId: channel.id,
+              flowId: flow.id,
+              msg,
+            }),
+          })
           handelse.go(`gofer:${channel.id}.onAck`, {
             msg,
             ack: ackMsg,

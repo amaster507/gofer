@@ -2,11 +2,11 @@ import { StoreConfig } from 'gofer-stores'
 import handelse from 'handelse'
 import Msg from 'ts-hl7'
 import { doAck } from './doAck'
-import { mapOptions } from './helpers'
+import { logger, mapOptions } from './helpers'
 import { store } from './initStores'
 import { queue } from './queue'
 import { tcpClient } from './tcpClient'
-import { Connection, RunRouteFunc, RunRoutesFunc } from './types'
+import { Connection, IContext, RunRouteFunc, RunRoutesFunc } from './types'
 
 export const runRoutes: RunRoutesFunc = async (channel, msg) => {
   const routes = channel?.routes ?? []
@@ -19,9 +19,7 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
             `${channel.id}.route.${route.id}`,
             (msg) => {
               return new Promise((res) => {
-                runRoute(channel.id, route.id, route.flows, msg, {
-                  verbose: channel.verbose ?? false,
-                })
+                runRoute(channel.id, route.id, route.flows, msg)
                   .then(() => {
                     // no matter if the message is filtered or not return true that the message was processed.
                     res(true)
@@ -36,16 +34,13 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
                   })
               })
             },
-            undefined,
             msg,
             options
           )
           return res(true)
         })
       }
-      return runRoute(channel.id, route.id, route.flows, msg, {
-        verbose: channel.verbose ?? false,
-      })
+      return runRoute(channel.id, route.id, route.flows, msg)
     }) || []
   ).then((res) => !res.some((r) => !r))
 }
@@ -54,8 +49,7 @@ export const runRoute: RunRouteFunc = async (
   channelId,
   routeId,
   route,
-  msg,
-  { verbose }
+  msg
 ) => {
   handelse.go(`gofer:${channelId}.onRouteStart`, {
     msg,
@@ -66,10 +60,17 @@ export const runRoute: RunRouteFunc = async (
   const flows: (boolean | Promise<boolean>)[] = []
   const doFilterTransform = (
     msg: Msg,
-    flow: (msg: Msg) => boolean | Msg,
+    flow: (msg: Msg, context: IContext) => boolean | Msg,
     flowId: string | number
   ) => {
-    const filterOrTransform = flow(msg)
+    const filterOrTransform = flow(msg, {
+      logger: logger({
+        channelId,
+        routeId,
+        flowId,
+        msg,
+      }),
+    })
     if (typeof filterOrTransform === 'boolean') {
       if (!filterOrTransform)
         handelse.go(`gofer:${channelId}.onFilter`, {
@@ -125,10 +126,17 @@ export const runRoute: RunRouteFunc = async (
               queue(
                 `${channelId}.${namedFlow.id}.tcp`,
                 (msg) =>
-                  tcpClient(tcpConfig, msg)
+                  tcpClient(
+                    tcpConfig,
+                    msg,
+                    undefined,
+                    undefined,
+                    channelId,
+                    routeId,
+                    namedFlow.id
+                  )
                     .then(() => true)
                     .catch(() => false),
-                undefined,
                 msg,
                 mapOptions(queueConfig)
               )
@@ -136,7 +144,11 @@ export const runRoute: RunRouteFunc = async (
             })
           )
           // set the msg to a dummy ack message so that the next flow can use it.
-          msg = doAck(msg, { text: 'Queued' })
+          msg = doAck(
+            msg,
+            { text: 'Queued' },
+            { channelId, routeId, flowId: namedFlow.id }
+          )
           continue
         }
         msg = await tcpClient(tcpConfig, msg)

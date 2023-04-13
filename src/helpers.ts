@@ -1,17 +1,44 @@
 import Msg from 'ts-hl7'
+import handelse from 'handelse'
 import { publishers } from './eventHandlers'
 import { genId } from './genId'
-import { QueueOptions } from './queue'
 import {
   ChannelConfig,
   Ingestion,
   IngestionFlow,
   MaybePromise,
-  Queue,
+  QueueConfig,
   Route,
   RouteFlow,
   RouteFlowNamed,
+  TLogLevel,
 } from './types'
+import { IQueueOptions } from 'gofer-queue/dist/queue'
+
+export const isLogging = (logLevel: TLogLevel, logConfigLevel?: TLogLevel) => {
+  if (logConfigLevel === undefined) return true
+  const levels = ['error', 'warn', 'info', 'debug']
+  const logLevelIndex = levels.indexOf(logLevel)
+  const logConfigLevelIndex = levels.indexOf(logConfigLevel)
+  return logLevelIndex <= logConfigLevelIndex
+}
+
+type TLogArgs<T> = {
+  channelId: string | number
+  routeId?: string | number
+  flowId?: string | number
+  msg?: T
+}
+export const logger =
+  <T>({ channelId, flowId, msg }: TLogArgs<T>) =>
+  (log: string, logLevel?: TLogLevel) =>
+    handelse.go(`gofer:${channelId}.onLog`, {
+      msg,
+      log,
+      channel: channelId,
+      flow: flowId,
+      level: logLevel,
+    })
 
 // this function modifies the original channel object to prevent generating new ids on every call
 export const ingestionObjectify = (channel: ChannelConfig) => {
@@ -19,7 +46,7 @@ export const ingestionObjectify = (channel: ChannelConfig) => {
     if (typeof flow === 'object' && flow.kind === 'flow') {
       if (flow?.id === undefined) {
         const ingestionId = genId()
-        if (channel.verbose)
+        if (isLogging('warn', channel.logLevel))
           publishers.onLog(
             `Channel ${channel.name} (${channel.id}) had an ingestion flow without an id. Generated id: ${ingestionId}`
           )
@@ -28,7 +55,7 @@ export const ingestionObjectify = (channel: ChannelConfig) => {
       return flow
     }
     const ingestionId = genId()
-    if (channel.verbose)
+    if (isLogging('warn', channel.logLevel))
       publishers.onLog(
         `Channel ${channel.name} (${channel.id}) had an ingestion flow without an id. Generated id: ${ingestionId}`
       )
@@ -57,14 +84,14 @@ export const ingestionSimplify = <
 
 export const routeFlowObjectify = (
   flows: (RouteFlow<'B', 'B'> | RouteFlowNamed<'B', 'B'>)[],
-  verbose = false
+  logLevel?: TLogLevel
 ): RouteFlowNamed<'B', 'B'>[] => {
   return flows.map((flow) => {
     if (typeof flow === 'object' && flow.kind === 'flow') {
       flow = flow as RouteFlowNamed<'B', 'B'>
       if (flow?.id === undefined) {
         const flowId = genId()
-        if (verbose)
+        if (isLogging('warn', logLevel))
           publishers.onLog(
             `Named Route (${flow.name}) was missing the id. Generated id: ${flowId}`
           )
@@ -73,7 +100,7 @@ export const routeFlowObjectify = (
       return flow
     }
     const flowId = genId()
-    if (verbose)
+    if (isLogging('warn', logLevel))
       publishers.onLog(`Route was missing the id. Generated id: ${flowId}`)
     return {
       kind: 'flow',
@@ -95,17 +122,17 @@ export const routesObjectify = (
     ) {
       if (route?.id === undefined) {
         const routeId = genId()
-        if (channel.verbose)
+        if (isLogging('warn', channel.logLevel))
           publishers.onLog(
             `Channel ${channel.name} (${channel.id}) had an route without an id. Generated id: ${routeId}`
           )
         route.id = routeId
       }
-      route.flows = routeFlowObjectify(route.flows, channel.verbose)
+      route.flows = routeFlowObjectify(route.flows, channel.logLevel)
       return route
     }
     const routeId = genId()
-    if (channel.verbose)
+    if (isLogging('warn', channel.logLevel))
       publishers.onLog(
         `Channel ${channel.name} (${channel.id}) had an route without an id. Generated id: ${routeId}`
       )
@@ -114,7 +141,7 @@ export const routesObjectify = (
       id: routeId,
       flows: routeFlowObjectify(
         route as (RouteFlow | RouteFlowNamed)[],
-        channel.verbose
+        channel.logLevel
       ),
     }
   })
@@ -144,8 +171,7 @@ export const coerceStrictTypedChannels = (
   return config.map((channel) => {
     if (!channel.id) {
       channel.id = genId()
-      // FIXME: Cannot use handelse event because they are not created yet for this channel. Need to make global event handlers.
-      if (channel.verbose)
+      if (isLogging('warn', channel.logLevel))
         publishers.onLog(
           `Channel "${channel.name}" config did not define an \`id\`. Assigned: "${channel.id}"`
         )
@@ -173,6 +199,12 @@ export const coerceStrictTypedChannels = (
   })
 }
 
+export const lastInArray = <T>(arr: T[]): T => {
+  const l = arr.length
+  if (l < 1) throw Error('Cannot get the last item from an empty array.')
+  return arr[l - 1]
+}
+
 export const promisify = <D>(data: MaybePromise<D>) =>
   new Promise<D>((res) => res(data))
 
@@ -183,30 +215,18 @@ export const atLeastOne = (res: Record<string, boolean>) =>
 export const atLeastOnePass = (res: Record<string, boolean>) =>
   Object.values(res).some((v) => v)
 
-const removeUndefined = <T extends Record<string, unknown>>(obj: T): T => {
-  const newObj = { ...obj }
-  Object.keys(newObj).forEach(
-    (k) => newObj[k] === undefined && delete newObj[k]
-  )
-  return newObj
-}
-
-export const mapOptions = (opt: Queue): QueueOptions<Msg> => {
-  return removeUndefined({
-    maxRetries: opt.retries,
-    rotate: opt.rotate,
-    maxTimeout: opt.maxTimeout,
-    sleep: opt.interval,
-    verbose: opt.verbose,
-    id: opt.id,
-    // filter: opt.filterQueue,
-    // precondition: opt.precondition,
-    // preconditionInterval: opt.preconditionRetryTimeout,
-    onEvents: opt.onEvents,
-    stringify: opt.stringify,
-    parse: opt.parse,
+export const mapOptions = (opt: QueueConfig): IQueueOptions<Msg> => {
+  return {
+    filo: opt.filo,
+    max_retries: opt.retries,
+    max_timeout: opt.maxTimeout,
+    workers: opt.concurrent,
+    workerLoopInterval: opt.afterProcessDelay,
     store: opt.store,
-    // concurrency: opt.concurrent,
-    // afterProcess: opt.afterProcessDelay,
-  })
+    id: opt.id,
+    allowUndefined: false,
+    storeStringify: (msg) => msg.toString(),
+    storeParse: (msg) => new Msg(msg),
+    verbose: opt.verbose,
+  }
 }

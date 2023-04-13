@@ -1,5 +1,6 @@
 import handelse from 'handelse'
 import { IEventHandler } from 'handelse/dist/types/types'
+import { TLogLevel } from './types'
 
 export interface IChannelEvents<T> {
   onReceive: IEventHandler<{ msg: T; channel: string | number }>
@@ -86,6 +87,7 @@ export interface IChannelEvents<T> {
     flow?: string | number
     queue?: string | number
     id?: string | number
+    level?: TLogLevel
   }>
 }
 
@@ -173,6 +175,7 @@ export const events = <T>(channel: string): IChannelEvents<T> => {
   const onLog = handelse.create<{
     log: unknown
     channel: string | number
+    level?: TLogLevel
     msg?: T
     route?: string | number
     flow?: string | number

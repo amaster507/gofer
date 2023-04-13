@@ -4,7 +4,7 @@ import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
 import { queue } from './queue'
 import { doAck } from './doAck'
-import { mapOptions } from './helpers'
+import { isLogging, mapOptions } from './helpers'
 
 export const tcpServer = <
   Filt extends 'O' | 'F' | 'B' = 'B',
@@ -35,11 +35,9 @@ export const tcpServer = <
     socket.setEncoding('utf8')
 
     const clientAddress = `${socket.remoteAddress}:${socket.remotePort}`
-    server.listen(port, host, () => {
-      handelse.go(`gofer:${channel.id}.onLog`, {
-        log: `New client connection from ${clientAddress}`,
-        channel: channel.id,
-      })
+    handelse.go(`gofer:${channel.id}.onLog`, {
+      log: `New client connection from ${clientAddress}`,
+      channel: channel.id,
     })
 
     const data: Record<string, string> = {}
@@ -89,7 +87,14 @@ export const tcpServer = <
           log: `Utilizing queue ${id}.source`,
           channel: channel.id,
         })
-        const ack = doAck(msg, { text: 'Queued' })
+        const ack = doAck(
+          msg,
+          { text: 'Queued' },
+          {
+            channelId: channel.id,
+            flowId: 'source',
+          }
+        )
         socket.write(SoM + ack.toString() + EoM + CR)
         handelse.go(`gofer:${channel.id}.onAck`, {
           channel: channel.id,
@@ -99,75 +104,13 @@ export const tcpServer = <
         queue(
           `${id}.source`,
           (msg) => ingestMessage(msg),
-          undefined,
           msg,
           mapOptions({
             ...queueConfig,
             verbose:
-              queueConfig !== undefined ? queueConfig.verbose : channel.verbose,
-            /**
-             * FIXME: Need to find another way to pass these events.
-             * These handler functions are only utilized in the first time the queue
-             * class is called and then not updated after that. Need to rethink this!
-             */
-            // onEvents: [
-            //   ...(queueConfig.onEvents ?? []),
-            //   [
-            //     'onQueue',
-            //     (id, qId) => {
-            //       handelse.go(`${channel.id}.onQueue`, {
-            //         channel: channel.id,
-            //         msg: msg,
-            //         queue: qId,
-            //         id,
-            //       })
-            //     },
-            //   ],
-            //   [
-            //     'onStart',
-            //     (id, qId) => {
-            //       handelse.go(`${channel.id}.onQueueStart`, {
-            //         channel: channel.id,
-            //         msg: msg,
-            //         queue: qId,
-            //         id,
-            //       })
-            //     },
-            //   ],
-            //   [
-            //     'onRetry',
-            //     (id, qId) => {
-            //       handelse.go(`${channel.id}.onQueueRetry`, {
-            //         channel: channel.id,
-            //         msg: msg,
-            //         queue: qId,
-            //         id,
-            //       })
-            //     },
-            //   ],
-            //   [
-            //     'onFail',
-            //     (id, qId) => {
-            //       handelse.go(`${channel.id}.onQueueFail`, {
-            //         channel: channel.id,
-            //         msg: msg,
-            //         queue: qId,
-            //         id,
-            //       })
-            //     },
-            //   ],
-            //   [
-            //     'onSuccess',
-            //     (id, qId) => {
-            //       handelse.go(`${channel.id}.onQueueRemove`, {
-            //         channel: channel.id,
-            //         msg: msg,
-            //         queue: qId,
-            //         id,
-            //       })
-            //     },
-            //   ],
-            // ],
+              queueConfig !== undefined
+                ? queueConfig.verbose
+                : isLogging('debug', channel.logLevel),
           })
         )
       } else {
@@ -177,7 +120,7 @@ export const tcpServer = <
       }
     })
     socket.on('close', (data) => {
-      if (channel.verbose)
+      if (isLogging('debug', channel.logLevel))
         console.log(
           `Client ${clientAddress} disconnected`,
           `data: ${JSON.stringify(data)}`

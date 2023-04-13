@@ -1,16 +1,24 @@
 import Msg from 'ts-hl7'
 import handelse from 'handelse'
+import { IContext } from './types'
+import { logger } from './helpers'
 
 export const filterOrTransform = <T = Msg>(
   msg: T,
   filtered: boolean,
-  flow: (msg: T) => T | boolean,
+  flow: (msg: T, context: IContext) => T | boolean,
   channelId: string | number,
   flowId: string | number,
   route?: string | number
 ): [T, boolean] => {
   if (filtered) return [msg, filtered]
-  const filteredOrMsg = flow(msg)
+  const filteredOrMsg = flow(msg, {
+    logger: logger({
+      channelId,
+      flowId,
+      msg,
+    }),
+  })
   if (typeof filteredOrMsg === 'boolean') {
     if (!filteredOrMsg) {
       handelse.go(`gofer:${channelId}.onFilter`, {

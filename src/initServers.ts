@@ -11,7 +11,7 @@ export const initServers: InitServers = (channels) => {
     .filter((channel) => channel.source.hasOwnProperty('tcp'))
     .forEach((c) => {
       const e = events<Msg>(c.id.toString())
-      verboseListeners(c.verbose ?? false, e)
+      verboseListeners(c.logLevel, e)
       tcpServer(c, async (msg, ack) => {
         const ingestedMsg = runIngestFlows(c, msg, ack)
         const accepted = typeof ingestedMsg === 'boolean' ? false : true
