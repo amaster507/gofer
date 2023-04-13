@@ -23,14 +23,14 @@ export const isLogging = (logLevel: TLogLevel, logConfigLevel?: TLogLevel) => {
   return logLevelIndex <= logConfigLevelIndex
 }
 
-type TLogArgs<T> = {
+type TLoggerArgs<T> = {
   channelId: string | number
   routeId?: string | number
   flowId?: string | number
   msg?: T
 }
 export const logger =
-  <T>({ channelId, flowId, msg }: TLogArgs<T>) =>
+  <T>({ channelId, flowId, msg }: TLoggerArgs<T>) =>
   (log: string, logLevel?: TLogLevel) =>
     handelse.go(`gofer:${channelId}.onLog`, {
       msg,

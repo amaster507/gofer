@@ -1,5 +1,8 @@
 import handelse from 'handelse'
 import { ChannelConfig } from './types'
+import { SubFunc, SubscriberID } from 'handelse/dist/types/types'
+import { IChannelEvents } from './events'
+import Msg from 'ts-hl7'
 
 export const onError = handelse.global<Error>('gofer:error')
 onError.do((error) => {
@@ -29,11 +32,20 @@ export const publishers = {
   onLog: onLog.pub,
 }
 
-export const listeners = {
+type TListeners = {
+  onGoferStart: (handler: SubFunc<Date>) => SubscriberID
+  preChannelInit: (handler: SubFunc<ChannelConfig>) => SubscriberID
+  onError: (handler: SubFunc<Error>) => SubscriberID
+  onLog: (handler: SubFunc<unknown>) => SubscriberID
+  channels: Record<string, IChannelEvents<Msg>>
+}
+
+export const listeners: TListeners = {
   onGoferStart: onGoferStart.sub,
   preChannelInit: preChannelInit.sub,
   onError: onError.sub,
   onLog: onLog.sub,
+  channels: {},
 }
 
 export default {

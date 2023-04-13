@@ -5,12 +5,14 @@ import { runIngestFlows } from './runIngestFlows'
 import { runRoutes } from './runRoutes'
 import { tcpServer } from './tcpServer'
 import { InitServers } from './types'
+import { listeners } from './eventHandlers'
 
 export const initServers: InitServers = (channels) => {
   channels
     .filter((channel) => channel.source.hasOwnProperty('tcp'))
     .forEach((c) => {
       const e = events<Msg>(c.id.toString())
+      listeners.channels[c.id] = e
       verboseListeners(c.logLevel, e)
       tcpServer(c, async (msg, ack) => {
         const ingestedMsg = runIngestFlows(c, msg, ack)
