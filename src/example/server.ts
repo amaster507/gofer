@@ -1,4 +1,4 @@
 import channels from './channels'
-import gofer from '.'
+import gofer from '..'
 
 gofer(channels)

@@ -3,11 +3,6 @@ import SampleA from './SampleA'
 import SampleB from './SampleB'
 import SampleC from './SampleC'
 
-const Channels: ChannelConfig[] = [
-  // TODO: remove the below imports and add your own channels here
-  SampleA,
-  SampleB,
-  SampleC,
-]
+const Channels: ChannelConfig[] = [SampleA, SampleB, SampleC]
 
 export default Channels
