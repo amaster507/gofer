@@ -1,6 +1,12 @@
 import { StoreConfig } from 'gofer-stores'
 import Msg from 'ts-hl7'
 
+export type MaybePromise<T> = Promise<T> | T
+
+export interface IContext {
+  logger: (log: string, logLevel?: TLogLevel) => void
+}
+
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
   T,
   Exclude<keyof T, Keys>
@@ -21,25 +27,56 @@ type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
 export type RequiredProperties<T, P extends keyof T> = Omit<T, P> &
   Required<Pick<T, P>>
 
+export type OnlyOptional<T> = {
+  [K in keyof T as T[K] extends Required<T>[K] ? never : K]: T[K]
+}
+
+export type OnlyRequired<T> = {
+  [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K]
+}
+
 interface ITcpConfig {
   host: string
   port: number
   SoM?: string // Start of Message: defaults to `Sting.fromCharCode(0x0b)`
   EoM?: string // End of Message: defaults to `String.fromCharCode(0x1c)`
   CR?: string // Carriage Return: defaults to `String.fromCharCode(0x0d)`
+  maxConnections?: number
 }
 
-interface Queue {
-  interval?: number
-  limit?: number
-  rotate?: boolean
-  storage?: StoreConfig
+export interface QueueConfig<T = Msg> {
+  kind: 'queue'
+  // interval?: number // milliseconds between retries. Defaults to 10x1000 = 10 seconds
+  // FIXME: better-queue does not currently support a queue limit.
+  // limit?: number // Limit the number of messages that can be queued. Defaults to Infinity
+  filo?: boolean // First In Last Out. Defaults to false
+  retries?: number // Defaults to Infinity
+  // TODO: `id` function is limited to only root key of T, change this to take the data and return the exact id.
+  // id?: keyof T | ((task: T, cb: (error: any, id: keyof T | { id: string }) => void) => void) |  ((task: T, cb: (error: any, id: keyof T) => void) => void) // used to uniquely identify the items in queue
+  id?: (msg: T) => string // used to uniquely identify the items in queue
+  // filterQueue?: (msg: T) => boolean | Promise<boolean> // Used to conditionally filter what messages are allowed to enter the queue. Return true to pass the message through to the queue, false to drop it. If undefined, then all messages are allowed.
+  // precondition?: (cb: (error: unknown, passOrFail: boolean) => void) => void
+  // preconditionRetryTimeout?: number // Number of milliseconds to delay before checking the precondition function again. Defaults to 10x1000 = 10 seconds.
+  // onEvents?: [
+  //   event: QueueEvents,
+  //   listener: (id: string, queueId: string | number, error?: string) => void
+  // ][]
+  // TODO: implement store config for the queue
+  // storage?: StoreConfig
+  concurrent?: number // Allows more than one message to be processed assynchronously if > 1. Defaults to 1.
+  maxTimeout?: number // Number of milliseconds before a task is considered timed out. Defaults to 10x1000 = 10 seconds
+  // TODO: implement another delay option for after the process is complete before the next message is processed
+  afterProcessDelay?: number // Number of ms to to interval loop the worker checking for completion of process to begin next. Defaults to 1x1000 = 1 second.
+  rotate?: boolean // Rotate the queue moving a failed message to the end of the queu. Defaults to false
+  verbose?: boolean // Log messages to console. Defaults to false
+  store: 'file' | 'memory'
+  stringify?: (msg: T) => string
+  parse?: (msg: string) => T
 }
 
 export type TcpConfig<T extends 'I' | 'O' = 'I'> = T extends 'I'
   ? ITcpConfig
   : ITcpConfig & {
-      queue?: boolean | number | Queue
       responseTimeout?: number | false
     }
 
@@ -75,23 +112,28 @@ export type FileConfig = RequireOnlyOne<
 >
 
 export type Connection<T extends 'I' | 'O'> = T extends 'I' // TODO: if after flushing the rest of these sources/destination, possibly merge these two
-  ? RequireOnlyOne<{
-      tcp?: TcpConfig<T> // Listens on a TCP host/port
+  ? (
+      | { kind: 'tcp'; tcp: TcpConfig<T> }
       // TODO: implement file reader source
       // NOTE: file source is different than the `file` store, because it will support additional methods such as ftp/sftp
-      // file?: FileConfig // Read Files
-      // TODO: implement db query source
+      | (never & { kind: 'file'; file: FileConfig })
+      //  TODO: implement db query source
       // NOTE: db source should be different than the `StoreConfig` because it should support query conditions. TBD
-      // db?: StoreConfig // Queries from Store
-    }>
-  : RequireOnlyOne<{
-      tcp?: TcpConfig<T> // Sends to a TCP host/port
-      // TODO: implement file writer
-      // NOTE: file destination is different than the `file` store, because it will support additional methods such as ftp/sftp
-      // file?: FileConfig // Write to Files
-      // TODO: db destination should be different than the `StoreConfig` because it should support query conditions and be able to set fields based upon parts of the HL7 message using paths. TBD
-      // db?: StoreConfig // Persists to Store
-    }>
+      // | { kind: 'db'; file: StoreConfig }
+      | (never & { kind: 'query'; query: StoreConfig })
+    ) & {
+      // NOTE: by using a queue acks are positively sent when queued not when removed from queue
+      queue?: QueueConfig
+    }
+  :
+      | { kind: 'tcp'; tcp: TcpConfig<T> }
+      // TODO: implement file reader source
+      // NOTE: file source is different than the `file` store, because it will support additional methods such as ftp/sftp
+      | (never & { kind: 'file'; file: FileConfig })
+      //  TODO: implement db query source
+      // NOTE: db source should be different than the `StoreConfig` because it should support query conditions. TBD
+      // | { kind: 'db'; file: StoreConfig }
+      | (never & { kind: 'query'; query: StoreConfig })
 
 export type AckConfig = {
   // Value to use in ACK MSH.3
@@ -103,7 +145,8 @@ export type AckConfig = {
     | 'AE' // Application Error
     | 'AR' // Application Reject
   // A Store configuration to save persistent messages
-  msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // returns the ack message to send
+  text?: string // Text to use in ACK MSA.3
+  msg?: (ack: Msg, msg: Msg, filtered: boolean, context: IContext) => Msg // returns the ack message to send
 }
 
 interface Tag {
@@ -111,28 +154,42 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
-type FilterFunc = (msg: Msg) => boolean
+type FilterFunc = (msg: Msg, context: IContext) => boolean
 
 // Returns true to pass through. Return false to filter out.
 // O = require objectified filters
 // F = require raw function filters
 // B = allow either objectified or raw function filters
 export type FilterFlow<Filt extends 'O' | 'F' | 'B' = 'B'> = Filt extends 'O'
-  ? { filter: FilterFunc }
+  ? { kind: 'filter'; filter: FilterFunc }
   : Filt extends 'F'
   ? FilterFunc
-  : FilterFunc | { filter: FilterFunc }
+  : FilterFunc | { kind: 'filter'; filter: FilterFunc }
 
-type TransformFunc = (msg: Msg) => Msg
+type TransformFunc = (msg: Msg, context: IContext) => Msg
 
 // O = require objectified transformers
 // F = require raw function transformers
 // B = allow either objectified or raw function transformers
 export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
-  ? { transform: TransformFunc }
+  ? { kind: 'transform'; transform: TransformFunc }
   : Tran extends 'F'
   ? TransformFunc
-  : TransformFunc | { transform: TransformFunc }
+  : TransformFunc | { kind: 'transform'; transform: TransformFunc }
+
+// This is a function that can be used as a filter or transformer
+// If it returns false it will filter out the message
+// Otherwise it returns the transformed message
+type TransformFilterFunction = (msg: Msg, context: IContext) => false | Msg
+
+export type TransformOrFilterFlow<Tran extends 'O' | 'F' | 'B' = 'B'> =
+  Tran extends 'O'
+    ? { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
+    : Tran extends 'F'
+    ? TransformFilterFunction
+    :
+        | TransformFilterFunction
+        | { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
@@ -140,7 +197,12 @@ export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
 export type IngestionFlow<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
-> = { ack: AckConfig } | FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig
+> =
+  | { kind: 'ack'; ack: AckConfig }
+  | FilterFlow<Filt>
+  | TransformFlow<Tran>
+  | TransformOrFilterFlow<Tran>
+  | ({ kind: 'store' } & StoreConfig)
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
@@ -149,9 +211,11 @@ export type Ingestion<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = {
+  kind: 'flow'
   id?: string | number // a unique id for this ingestion flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this ingestion flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify ingestion flows
+  queue?: QueueConfig
   flow: IngestionFlow<Filt, Tran>
 }
 
@@ -161,7 +225,12 @@ export type Ingestion<
 export type RouteFlow<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
-> = FilterFlow<Filt> | TransformFlow<Tran> | StoreConfig | Connection<'O'>
+> =
+  | FilterFlow<Filt>
+  | TransformFlow<Tran>
+  | TransformOrFilterFlow<Tran>
+  | ({ kind: 'store' } & StoreConfig)
+  | Connection<'O'>
 
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
@@ -170,9 +239,11 @@ export type RouteFlowNamed<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 > = {
+  kind: 'flow'
   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this route flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify route flows
+  queue?: QueueConfig
   flow: RouteFlow<Filt, Tran>
 }
 
@@ -185,39 +256,47 @@ export type Route<
   Tran extends 'O' | 'F' | 'B' = 'B',
   Stct extends 'S' | 'L' = 'L'
 > = {
+  kind: 'route'
   id?: string | number // a unique id for this route flow. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
   name?: string // a human readable name for this route flow. Preferrably unique
   tags?: Tag[] // Tags to help organize/identify route flows
+  queue?: QueueConfig
   flows: Stct extends 'S'
     ? RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[]
     : (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
 }
+
+// log levels in order of severity. If you show 'DEBUG' logs, you will also see 'INFO' logs, etc.
+export type TLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 // Filt(er) & Tran(sformer)
 // O = require objectified filters/transformers
 // F = require raw function filters/transformers
 // B = allow either objectified or raw function filters/transformers
 // Stct = strict mode. If 'S' then everything must be objectified with ids. If 'L' then allow loose.
-export interface ChannelConfig<
+export type ChannelConfig<
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B',
   Stct extends 'S' | 'L' = 'L'
-> {
-  id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
-  name: string // a name, preferrably unique, to identify this channel later on
-  tags?: Tag[] // Tags to help organize/identify channels
-  source: Connection<'I'>
-  ingestion: Stct extends 'S'
-    ? RequiredProperties<Ingestion<Filt, Tran>, 'id' | 'flow'>[]
-    : (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
-  routes?: Stct extends 'S'
-    ? RequiredProperties<Route<Filt, Tran, 'S'>, 'id' | 'flows'>[]
-    : (
-        | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
-        | Route<Filt, Tran>
-      )[]
-  verbose?: boolean // do extra info logging.
-}
+> = RequiredProperties<
+  {
+    id?: string | number // a unique id for this channel. If not provided will use UUID to generate. if not defined it may not be the same between deployments/reboots
+    name: string // a name, preferrably unique, to identify this channel later on
+    tags?: Tag[] // Tags to help organize/identify channels
+    source: Connection<'I'>
+    ingestion: Stct extends 'S'
+      ? RequiredProperties<Ingestion<Filt, Tran>, 'id' | 'flow'>[]
+      : (IngestionFlow<Filt, Tran> | Ingestion<Filt, Tran>)[]
+    routes?: Stct extends 'S'
+      ? RequiredProperties<Route<Filt, Tran, 'S'>, 'id' | 'flows'>[]
+      : (
+          | (RouteFlow<Filt, Tran> | RouteFlowNamed<Filt, Tran>)[]
+          | Route<Filt, Tran>
+        )[]
+    logLevel?: TLogLevel // the log level for this channel. If not provided will not log anything.
+  },
+  Stct extends 'S' ? 'id' : 'name'
+> // `name` here is just a placholder for default. It doesn't change anything because name is already a required field.
 
 export type InitServers = <
   Filt extends 'O' | 'F' | 'B' = 'B',
@@ -226,7 +305,7 @@ export type InitServers = <
   channels: ChannelConfig<Filt, Tran, 'S'>[]
 ) => void
 
-export type AckFunc = (ack: Msg) => void
+export type AckFunc = (ack: Msg, context: IContext) => void
 
 export type IngestFunc = <
   Filt extends 'O' | 'F' | 'B' = 'B',
@@ -234,7 +313,7 @@ export type IngestFunc = <
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
   msg: Msg,
-  ack: AckFunc
+  ack?: AckFunc
 ) => Msg | false
 
 export type RunRoutesFunc = <
@@ -245,4 +324,12 @@ export type RunRoutesFunc = <
   msg: Msg
 ) => Promise<boolean>
 
-export type RunRouteFunc = (route: RouteFlow[], msg: Msg) => Promise<boolean>
+export type RunRouteFunc = <
+  Filt extends 'O' | 'F' | 'B' = 'B',
+  Tran extends 'O' | 'F' | 'B' = 'B'
+>(
+  channelId: string | number,
+  routeId: string | number,
+  route: RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[],
+  msg: Msg
+) => Promise<boolean>

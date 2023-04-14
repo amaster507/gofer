@@ -1,23 +1,11 @@
-import { ChannelConfig } from './types'
-import { initStores } from './initStores'
-import { initServers } from './initServers'
 import { apiServer } from './api'
 import State from './state'
 import gql from './api/gql'
-import { coerceStrictTypedChannels } from './helpers'
+import { gofer } from './gofer'
 
-const state = new State({})
+export * from './types'
 
-const gofer = async (channels: ChannelConfig[]): Promise<void> => {
-  initServers(
-    initStores(
-      coerceStrictTypedChannels(channels).map((channel) => {
-        state.addChannel(channel)
-        return channel
-      })
-    )
-  )
-}
+export const state = new State({})
 
 apiServer(async (req) => {
   const res = await new gql(JSON.parse(req.body), state).res()

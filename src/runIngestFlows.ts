@@ -1,77 +1,97 @@
 import { StoreConfig } from 'gofer-stores'
-import Msg from 'ts-hl7'
+import handelse from 'handelse'
+import { doAck } from './doAck'
+import { filterOrTransform } from './filterOrTransform'
 import { store } from './initStores'
-import { AckConfig, FilterFlow, IngestFunc, TransformFlow } from './types'
-
-const filterOrTransform = (
-  msg: Msg,
-  filtered: boolean,
-  flow: (msg: Msg) => boolean | Msg
-): [msg: Msg, filtered: boolean] => {
-  const filteredOrMsg = flow(msg)
-  if (typeof filteredOrMsg === 'boolean') {
-    filtered = !filteredOrMsg
-  } else {
-    msg = filteredOrMsg
-  }
-  return [msg, filtered]
-}
+import { IngestFunc } from './types'
+import { logger } from './helpers'
 
 export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
   let filtered = false
   channel.ingestion.forEach((flow) => {
     const step = flow.flow
     if (typeof step === 'object') {
-      if (step.hasOwnProperty('ack')) {
-        const ackConfig = (step as { ack: AckConfig }).ack as AckConfig
-        const app = ackConfig.application ?? 'gofer ENGINE'
-        const org = ackConfig.organization ?? ''
-        const res = ackConfig.responseCode ?? 'AA'
-        const id = msg.get('MSH-10.1')
-        const now = new Date()
-          .toUTCString()
-          .replace(/[^0-9]/g, '')
-          .slice(0, -3)
-        const ackMsg = new Msg(
-          `MSH|^~\\&|${app}|${org}|||${now}||ACK|${id}|P|2.5.1|\nMSA|${res}|${id}`
-        )
-        ack(
-          typeof ackConfig.msg === 'function'
-            ? ackConfig.msg(ackMsg, msg, filtered)
-            : ackMsg
-        )
+      if (step.kind === 'ack') {
+        const ackConfig = step.ack
+        const ackMsg = doAck(msg, ackConfig, {
+          filtered,
+          channelId: channel.id,
+          flowId: flow.id,
+        })
+        if (typeof ack === 'function') {
+          ack(ackMsg, {
+            logger: logger({
+              channelId: channel.id,
+              flowId: flow.id,
+              msg,
+            }),
+          })
+          handelse.go(`gofer:${channel.id}.onAck`, {
+            msg,
+            ack: ackMsg,
+            channel: channel.id,
+          })
+        }
         return
-      } else if (step.hasOwnProperty('filter')) {
-        if (filtered) {
-          return
-        }
+      } else if (step.kind === 'filter') {
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (step as FilterFlow<'O'>).filter
+          step.filter,
+          channel.id,
+          flow.id
         )
         msg = m
         filtered = f
-      } else if (step.hasOwnProperty('transform')) {
-        if (filtered) {
-          return
-        }
+      } else if (step.kind === 'transformFilter') {
         const [m, f] = filterOrTransform(
           msg,
           filtered,
-          (step as TransformFlow<'O'>).transform
+          step.transformFilter,
+          channel.id,
+          flow.id
         )
         msg = m
         filtered = f
-      } else {
-        const storeConfig = step as StoreConfig
-        store(storeConfig, msg)
+      } else if (step.kind === 'transform') {
+        const [m, f] = filterOrTransform(
+          msg,
+          filtered,
+          step.transform,
+          channel.id,
+          flow.id
+        )
+        msg = m
+        filtered = f
+      } else if (step.kind === 'store') {
+        const storeConfig = { ...step }
+        store(storeConfig as StoreConfig, msg)
+          ?.then((res) => {
+            if (res)
+              return handelse.go(`gofer:${channel.id}.onLog`, {
+                msg,
+                log: `Stored Msg`,
+                channel: channel.id,
+                flow: flow.id,
+              })
+            return handelse.go(`gofer:${channel.id}.onError`, {
+              msg,
+              error: `Failed to store Msg`,
+              channel: channel.id,
+              flow: flow.id,
+            })
+          })
+          .catch((error: unknown) => {
+            handelse.go(`gofer:${channel.id}.onError`, {
+              msg,
+              error,
+              channel: channel.id,
+              flow: flow.id,
+            })
+          }) || false
       }
     } else if (typeof step === 'function') {
-      if (filtered) {
-        return
-      }
-      const [m, f] = filterOrTransform(msg, filtered, step)
+      const [m, f] = filterOrTransform(msg, filtered, step, channel.id, flow.id)
       msg = m
       filtered = f
     }

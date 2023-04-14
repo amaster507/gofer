@@ -1,13 +1,17 @@
 import net from 'net'
+import handelse from 'handelse'
 import Msg from 'ts-hl7'
 import { AckFunc, ChannelConfig } from './types'
+import { queue } from './queue'
+import { doAck } from './doAck'
+import { isLogging, mapOptions } from './helpers'
 
 export const tcpServer = <
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
-  ingestMessage: (msg: Msg, ack: AckFunc) => Msg | void
+  ingestMessage: (msg: Msg, ack?: AckFunc) => Promise<boolean>
 ) => {
   const {
     host,
@@ -15,36 +19,44 @@ export const tcpServer = <
     SoM = '\x0B',
     EoM = '\x1C',
     CR = '\r',
+    maxConnections,
   } = channel.source.tcp
+  const id = channel.id
+  const queueConfig = channel.source.queue
   const server = net.createServer({ allowHalfOpen: false })
+  if (maxConnections !== undefined) server.setMaxListeners(maxConnections)
   server.listen(port, host, () => {
-    if (channel.verbose)
-      console.log(
-        `${channel.name}(${channel.id}) Server listening on ${host}:${port}`
-      )
+    handelse.go(`gofer:${channel.id}.onLog`, {
+      log: `Server listening on ${host}:${port}`,
+      channel: channel.id,
+    })
   })
   server.on('connection', (socket) => {
     socket.setEncoding('utf8')
 
     const clientAddress = `${socket.remoteAddress}:${socket.remotePort}`
-    if (channel.verbose)
-      console.log(`New client connection from ${clientAddress}`)
+    handelse.go(`gofer:${channel.id}.onLog`, {
+      log: `New client connection from ${clientAddress}`,
+      channel: channel.id,
+    })
 
     const data: Record<string, string> = {}
 
     socket.on('data', (packet) => {
-      if (channel.verbose)
-        console.log(`Received Data from Client ${clientAddress}:`)
+      handelse.go(`gofer:${channel.id}.onLog`, {
+        log: `Received Data from Client ${clientAddress}:`,
+        channel: channel.id,
+      })
       let hl7 = packet.toString()
       const f = hl7[0]
       const e = hl7[hl7.length - 1]
       const l = hl7[hl7.length - 2]
       // if beginning of a message and there is an existing partial message, then delete it
       if (f === SoM && data?.[clientAddress] !== undefined) {
-        if (channel.verbose)
-          console.log(
-            `MESSAGE LOSS: Partial message removed from ${clientAddress}`
-          )
+        handelse.go(`gofer:${channel.id}.onError`, {
+          error: `MESSAGE LOSS: Partial message removed from ${clientAddress}`,
+          channel: channel.id,
+        })
         delete data[clientAddress]
       }
       // if end of a message then see if there is a partial message to append it to.
@@ -66,14 +78,49 @@ export const tcpServer = <
         return
       }
       const msg = new Msg(hl7)
-      if (channel.verbose)
-        console.log('Received HL7 msg id: ', msg.get('MSH-10.1'))
-      ingestMessage(msg, (ack: Msg) => {
-        socket.write(SoM + ack.toString() + EoM + CR)
+      handelse.go(`gofer:${channel.id}.onReceive`, {
+        msg,
+        channel: channel.id,
       })
+      if (queueConfig) {
+        handelse.go(`gofer:${channel.id}.onLog`, {
+          log: `Utilizing queue ${id}.source`,
+          channel: channel.id,
+        })
+        const ack = doAck(
+          msg,
+          { text: 'Queued' },
+          {
+            channelId: channel.id,
+            flowId: 'source',
+          }
+        )
+        socket.write(SoM + ack.toString() + EoM + CR)
+        handelse.go(`gofer:${channel.id}.onAck`, {
+          channel: channel.id,
+          msg: msg,
+          ack: ack,
+        })
+        queue(
+          `${id}.source`,
+          (msg) => ingestMessage(msg),
+          msg,
+          mapOptions({
+            ...queueConfig,
+            verbose:
+              queueConfig !== undefined
+                ? queueConfig.verbose
+                : isLogging('debug', channel.logLevel),
+          })
+        )
+      } else {
+        ingestMessage(msg, (ack: Msg) => {
+          socket.write(SoM + ack.toString() + EoM + CR)
+        })
+      }
     })
     socket.on('close', (data) => {
-      if (channel.verbose)
+      if (isLogging('debug', channel.logLevel))
         console.log(
           `Client ${clientAddress} disconnected`,
           `data: ${JSON.stringify(data)}`

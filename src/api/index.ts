@@ -1,4 +1,5 @@
 import net from 'net'
+import { onLog } from '../eventHandlers'
 
 const PORT = parseInt(process.env?.API_PORT ?? '8080')
 const HOST = '0.0.0.0'
@@ -59,7 +60,7 @@ export const apiServer = (
     .listen(PORT, HOST)
     .on('connection', (socket) => {
       if (verbose)
-        console.log(
+        onLog.go(
           `New Management API connection from ${socket.remoteAddress}:${socket.remotePort}`
         )
       socket.on('data', async (buffer) => {
@@ -78,5 +79,5 @@ export const apiServer = (
         socket.end()
       })
     })
-  console.log(`gofer Enine Management API listening on ${HOST}:${PORT}`)
+  onLog.go(`gofer Enine Management API listening on ${HOST}:${PORT}`)
 }

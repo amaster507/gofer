@@ -8,7 +8,6 @@ Contents:
 
 - [Setup, Installation and Usage](#setup-installation-and-usage)
   - [Prerequisites](#prerequisites)
-  - [Setup](#setup)
   - [Installation](#installation)
   - [Usage](#usage)
   - [Running the Server in Development](#running-the-server-in-development)
@@ -36,41 +35,27 @@ I find it helpful to newer developers to have a step-by-step guide to get them s
 
 It is recommended to use the latest version of Node.js. You can download it [here](https://nodejs.org/en/download/).
 
-## Setup
+The following packages are helpful to have installed:
 
-If you already have a project, you can skip these steps.
+- [typescript](https://www.npmjs.com/package/typescript) - A superset of JavaScript that compiles to plain JavaScript. `npm install -D typescript`
+- [nodemon](https://www.npmjs.com/package/nodemon) - A utility that will monitor for any changes in your source and automatically restart your server. `npm install -D nodemon`
+- [ts-node](https://www.npmjs.com/package/ts-node) - A utility that will allow you to run TypeScript files directly without having to compile them first. `npm install -D ts-node`
 
-1. Create a new folder for your project.
-2. Open a terminal in that folder.
-3. Run `npm init` and follow the prompts.
-4. Run `npm install -D typescript` to install typescript development dependency.
-5. Run `npx tsc --init` to create a typescript configuration file.
-6. Run `npm install -D eslint` to install eslint development dependency.
-7. Run `npx eslint --init` and follow prompts to create an eslint configuration file.
-
-- How would you like to use ESLint? "To check syntax, find problems, and enforce code style"
-- What type of modules does your project use? "JavaScript modules (import/export)"
-- Which framework does your project use? "None of these"
-- Does your project use TypeScript? "Yes"
-- Where does your code run? "Node"
-- How would you like to define a style for your project? "Use a popular style guide"
-- Which style guide do you want to follow? "Standard: ..."
-- What format do you want your config file to be in? "JavaScript"
-- Would you like to install them now with npm? "Yes"
-- Which package manager do you want to use? "npm"
-
-8. Run `npm install -D prettier eslint-config-prettier eslint-plugin-prettier` to install prettier development dependencies.
-9. Run `npm install -D husky lint-staged` to install husky and lint-staged development dependencies.
-10. Run `npm install -D nodemon ts-node` to install nodemon development dependency.
-11. Run `git init && echo "node_modules" >> .gitignore && echo "out" >> .gitignore && echo "local" >> .gitignore` to initialize git and add `node_modules`, `out`, and `local` directories to the `.gitignore` file.
-12. In your `tsconfig.json` file add the following `outDir` to the Compiler Options:
+If you are using TypeScript, then you should create a `tsconfig.json` file in your project's root directory. You can use the following as a starting point:
 
 ```json
 {
   "compilerOptions": {
-    /* ... */
-    "outDir": "./out"
-  }
+    "target": "ES2015",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "outDir": "out",
+    "sourceMap": true,
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"]
 }
 ```
 
@@ -92,14 +77,17 @@ import { ChannelConfig } from 'gofer-engine/dist/types/types'
 const channel: ChannelConfig = {
   name: 'My First Channel',
   source: {
+    kind: 'tcp',
     tcp: {
       host: 'localhost',
       port: 5500,
     },
   },
-  ingestion: [{ ack: {} }, { file: {} }],
+  ingestion: [
+    { kind: 'ack', ack: {} },
+    { kind: 'store', file: {} },
+  ],
   routes: [],
-  verbose: true,
 }
 
 gofer([channel])
@@ -113,7 +101,7 @@ The above adds a single channel that listens on localhost port 5500 for HL7 mess
 
 ```json
 "scripts": {
-  "dev": "nodemon --exec ts-node src/server.ts"
+  "dev": "nodemon src/server.ts"
 }
 ```
 
@@ -121,7 +109,7 @@ The above adds a single channel that listens on localhost port 5500 for HL7 mess
 
 ## Version Control with Git
 
-One of the beaties of using gofer Engine is that you can version control your channels. This allows you to easily branch and merge changes to your channels to ease with development and testing of new interfaces and changes to existing interfaces.
+One of the beauties of using gofer Engine is that you can version control your channels. This allows you to easily branch and merge changes to your channels to ease with development and testing of new interfaces and changes to existing interfaces.
 
 If you are in an on-premise ONLY environment, then might I recommend [Bonobo Git Server](https://bonobogitserver.com/) as an alternative to [Github](https://github.com).
 
@@ -154,7 +142,7 @@ I have strived to make developing channels as easy as possible. The goal is to m
 
 ## gofer Engine Configuration
 
-As you saw above, the gofer Engine exportable function takes an array of channel configurations. Let's take a look at the channel configuration object:
+As you saw above, the gofer Engine exportable function takes an array of channel configurations. Let's take a look at a simplified view of the `ChannelConfig` interface:
 
 ```typescript
 interface ChannelConfig {
@@ -171,7 +159,7 @@ interface ChannelConfig {
   source: Connection<'I'>
   // A list of flows to process messages as they are received.
   // The order of the flows is important.
-  // The first flow will be executed first, the second flow will be executed second, etc.
+  // Flows will be executed in the order they are defined in this list.
   // If the server should respond to the source, then there should be an ack flow somewhere in this list.
   ingestion: IngestionFlow[]
   // A list of routes composed of flows to process and send messages to other destinations.
@@ -184,9 +172,52 @@ interface ChannelConfig {
 }
 ```
 
+### Forcing a config style with Generics
+
+The `ChannelConfig` interface can be loosely typed allowing very simple configuration of channels. For example an `IngestionFlow` can be a function directly:
+
+```typescript
+const flow: IngestionFlow = (msg) => msg.get('MSH.9.1') === 'ADT'
+```
+
+Or it can be an object with a `kind` property:
+
+```typescript
+const flow: IngestionFlow = {
+  kind: 'filter',
+  filter: (msg) => msg.get('MSH.9.1') === 'ADT',
+}
+```
+
+The `IngestionFlow` accept generics to force a style. The first generic controlls the Filter flows, and the second generic controlls the Transform flows. The generic is either `'O'` for objects, `'F'` for functions, or `'B'` to allow either (default).
+
+```typescript
+const flows: IngestionFlow<'O', 'O'>[] = []
+```
+
+To force the use of objects for all filters and transformers in a channel config, you can pass the generics to the `ChannelConfig` interface:
+
+```typescript
+const channel: ChannelConfig<'O', 'O'>[] = []
+```
+
+More information on the [`ingestionFlow`](#Channel-ingestion) below.
+
+### Channel id
+
 The `id` is optional, If you don't provide an `id`, then the channel will be assigned a UUID which may not be the same between deployments/reboots. The `id` helps to identify ambiguously named channels in the logs.
 
+If you want to force `id`s to be required, then you can pass a third generic to the `ChannelConfig` interface. `'S'` will strictly force the `id` to be required. `'L'` (default) will loosely allow `id` to be undefined.
+
+```typescript
+const channel: ChannelConfig<'O', 'O', 'S'>[] = []
+```
+
+### Channel name
+
 The `name` is required and should be unique, but not required. The `name` is used to allow human readable channel names in the logs.
+
+### Channel tags
 
 The `tags` are optional and are used to help organize and identify channels. They are not used by the engine, but are there to help you identify related channels and dependencies. The interface `Tag` is currently defined as:
 
@@ -198,10 +229,15 @@ interface Tag {
 }
 ```
 
+Note: These tags are not currently used by the engine or the admin API. Eventually I would like to add a UI to help visualize the channels and their dependencies which would use these tags.
+
+### Channel source
+
 The `source` is required and is the source of the messages to process. Currently the only supported source is TCP Listener for HL7 messages. The interface `Connection<'I'>` is computed to:
 
 ```typescript
 interface Connection {
+  kind: 'tcp'
   tcp: {
     host: string
     port: number
@@ -212,8 +248,15 @@ interface Connection {
     // End of Transmission character. Defaults to '\r'
     CR?: string
   }
+  queue?: QueueConfig
 }
 ```
+
+Future plans include support for HL7 over HTTP, HL7 reading from files in a directory, and HL7 reading from a database. Eventually, I would like to support other message formats such as FHIR, CDA, CSV, PSV, etc.,
+
+More information on the [`QueueConfig`](#Queing) below.
+
+### Channel ingestion
 
 The `ingestion` is required and is a list of flows to process messages as they are received. The order of the flows is important. The first flow will be executed first, the second flow will be executed second, etc. If the server should respond to the source, then there should be an ack flow somewhere in this list. The interface `IngestionFlow` is computed to:
 
@@ -237,7 +280,43 @@ type IngestionFlow =
   | StoreConfig // see (## Store Configs) below
 ```
 
-The `routes` are optional and are a list of routes composed of flows to process and send messages to other destinations. Each route is a list of flows to process messages as they are received. The order of routes is not important, however the order of the flows in each route is important. If there are asynchronous flows in a route, then other routes can continue to execute while waiting. The interface `RouteFlow` is computed to:
+### Channel routes
+
+The `routes` are optional and are a list of routes composed of flows to process and send messages to other destinations. Each route is a list of flows to process messages as they are received. The order of routes is not important, however the order of the flows in each route is important. If there are asynchronous flows in a route, then other routes can continue to execute while waiting.
+
+The `ChannelConfig` interface was simplified above to show the basic structure. The `routes` property can be lossely defined as multideimensional array of `RouteFlow` or `RouteFlowNamed` interfaces. Or it can be strictly defined as an array of `Route` interfaces typed as:
+
+```typescript
+interface Route {
+  kind: 'route'
+  id?: string | number
+  name?: string
+  tags?: Tag[]
+  queue?: QueueConfig
+  flows: RouteFlow[]
+}
+```
+
+With strict Channel Config (`ChannelConfig<'O', 'O', 'S'>`) then the `routes` property must be defined as a `Route` interface and the `id` becomes required.
+
+Similarly the `Route['flow']` type is simplified above to show the basic structure. The `flows` property can be lossely defined as an array of `RouteFlow` or `RouteFlowNamed` interfaces. Or it can be strictly defined to only include `RouteFlowNamed` interfaces typed as:
+
+```typescript
+interface RouteFlowNamed {
+  kind: 'flow'
+  id?: string | number
+  name?: string
+  tags?: Tag[]
+  queue?: QueueConfig
+  flow: RouteFlow
+}
+```
+
+If you are going to add a queue to a route, then you must use the `Route` interface and not the simplified `RouteFlow[]` array. If you are going to add a queue to a flow, then you must use the `RouteFlowNamed` interface and not the simplified `RouteFlow` interface.
+
+More information on the [`QueueConfig`](#Queing) below.
+
+The interface `RouteFlow` is computed to:
 
 ```typescript
 type RouteFlow =
@@ -245,6 +324,7 @@ type RouteFlow =
   | TransformFlow // see (## Transform Flows) below
   | StoreConfig // see (## Store Configs) below
   | {
+      kind: 'tcp'
       tcp: {
         host: string
         port: number
@@ -254,23 +334,13 @@ type RouteFlow =
         EoM?: string
         // End of Transmission character. Defaults to '\r'
         CR?: string
-        // queue settings. NOTE: not yet implemented
-        queue?:
-          | boolean
-          | number
-          | {
-              interval?: number
-              limit?: number
-              rotate?: boolean
-              storage?: StoreConfig
-            }
         // response timeout in milliseconds. NOTE: not yet implemented
         responseTimeout?: number | false
       }
     }
 ```
 
-Currently only TCP remote destinations are supported. The `queue` and `responseTimeout` settings are not yet used in implementation. The current implementation will not queue messages, and will keep the connection open waiting for a response (FIXME: really? - this should be tested to see what really happens if the remote server doesn't respond)
+Currently only TCP remote destinations are supported.
 
 ## Filter Flows
 
@@ -278,7 +348,7 @@ Filter Flows are used to filter messages. They are used to determine if a messag
 
 ```typescript
 type FilterFunc = (msg: Msg) => boolean
-type FilterFlow = FilterFunc | { filter: FilterFunc }
+type FilterFlow = FilterFunc | { kind: 'filter'; filter: FilterFunc }
 ```
 
 Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and extrapulating data from the message to use in comparisons.
@@ -321,6 +391,7 @@ const channelConfig: ChannelConfig = {
 ```
 
 For advanced type control, you can pass through a generic to the ChannelConfig (the _first_ generic option) to either:
+
 - `'F'` = Only allow raw filter functions. E.G. `ingection: [() => true]`
 - `'O'` = Only allow filter functions in objects. E.G. `ingestion: [{ filter: () => true }]`
 - `'B'` = Allow both raw filter function or wrapped in objects. E.G. `ingestion: [() => true, { filter: () => true }]`
@@ -333,7 +404,9 @@ Transform Flows are used to transform messages. The interface `TransformFlow` ca
 
 ```typescript
 type TransformFunc = (msg: Msg) => Msg
-type TransformFlow = TransformFunc | { transform: TransformFunc }
+type TransformFlow =
+  | TransformFunc
+  | { kind: 'transform'; transform: TransformFunc }
 ```
 
 Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and transforming the data in the message. The trasnformer functions of the class retun back the class instance, so you can chain them together. Here is an example of a transformer that takes the field `PV1-3` and adds a prefix to it:
@@ -347,7 +420,12 @@ const channelConfig: ChannelConfig = {
       port: 8080,
     },
   },
-  ingestion: [{ transform: (msg) => msg.map('PV1-3[1].1', (location) => 'HOSP.' + location) }],
+  ingestion: [
+    {
+      transform: (msg) =>
+        msg.map('PV1-3[1].1', (location) => 'HOSP.' + location),
+    },
+  ],
 }
 ```
 
@@ -370,11 +448,79 @@ const channelConfig: ChannelConfig = {
 ```
 
 For advanced type control, you can pass through a generic to the ChannelConfig (the _second_ generic option) to either:
+
 - `'F'` = Only allow raw transform functions. E.G. `ingection: [(msg) => msg]`
 - `'O'` = Only allow transform functions in objects. E.G. `ingestion: [{ transform: (msg) => msg }]`
 - `'B'` = Allow both raw transform function or wrapped in objects. E.G. `ingestion: [(msg) => msg, { transform: (msg) => msg }]`
 
 The default is `'B'`. E.G. `const conf: ChannelConfig<'B', 'B'> = ...`
+
+## Transform or Filter Flow
+
+For flexibility, you can pass through a `TransformOrFilterFlow` to the ingestion array or route flows. This allows you to specify a filter and/or a transformer. The interface `TransformOrFilterFlow` is defined as:
+
+```typescript
+type TransformFilterFunction = (msg: Msg) => false | Msg
+type TransformOrFilterFlow =
+  | TransformFilterFunction
+  | { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
+```
+
+This allows you to write a transformer that can exit early if a condition is not met and return `false` to prevent further processing of the following flows.
+
+### Queing
+
+Queuing is useful for when you need to allow retries or throttle the number of messages being processed at a time. The Queue can be configured in three different places in a channel config.
+
+1. In the TCP Source. This will queue all messages coming in from the TCP source. This will allow for a quick ack to the sender that the message was queued without having to wait for the ingestion flow to process the messages up to an ack flow. Ack flows in the ingestion array will not be sent back to the original sender when using a queue.
+2. In the Route. This will queue the message before it is sent to the flows of the route. This could be useful if you want to throttle the number of messages being sent to a specific route or if a transformer, filter, store, or destination flow is problematic to allow for retries of the entire route again.
+3. In TCP RouteFlows. Typing currently allows queues to be added to any RouteFlow, but only TCP RouteFlows will actually queue the messages. This is useful if you want to throttle the number of messages being sent to a specific destination, or to retry the TCP connection again in case of a downtime or other transport failure.
+
+_NOTE_: TCP destinations that return a NACK do not currently retry the message. This could be added in the future if there is a need for it. Most of the systems I have worked with, the NACK is a permanent failure and the message should be discarded.
+
+The interface `QueueConfig` is defined as:
+
+```typescript
+interface QueueConfig {
+  kind: 'queue'
+  filo: boolean // default to false
+  retries?: number // defaults to Infinity
+  id?: (msg: Msg) => string // default to crypto.randomUUID()
+  concurrent?: number // defaults to 1
+  maxTimeout?: number // defaults to 10x1000 = 10 seconds
+  afterProcessDelay?: number // default to 1000 = 1 second
+  rotate?: boolean // defaults to false
+  verbose?: boolean // defaults to false
+  store: 'file' | 'memory'
+  strinfigy?: (msg: Msg) => string // defaults to (msg) => msg.toString()
+  parse?: (msg: string) => Msg // defaults to (msg) => new Msg(msg)
+}
+```
+
+The `filo` option when set to true, reverses the queue order to First-In-Last-Out instead of the default First-In-First-Out.
+
+The `retries` option is the number of times to retry the message before discarding it. The default is `Infinity` which will retry the message forever.
+
+The `id` option is a function that takes the message and returns a unique string. This is used to identify the message in the queue. The default is `crypto.randomUUID()` which is a cryptographically secure random number generator. Alternatively, you could use the message id from the MSH segment with `(msg) => msg.get('MSH-10.1')`. This is useful to prevent duplicate messages in the queue simultaneously. But if a duplicate id used, but the previous message has already been processed, the new message will be processed as well.
+
+The `concurrent` option is the number of messages to process at a time. The default is `1` which will process one message at a time. This is useful if you want to throttle the number of messages being processed at a time. If you want a faster throughput, you can increase this number, but you will most likely experience message reordering. To ensure message order, you can only use a `concurrent` value of `1`.
+
+The `maxTimeout` option is the maximum amount of time to wait for a message to be processed before retrying. This is implemented currently by the queueing class, but **not yet implemented** in the actual flows.
+
+The `afterProcessDelay` option was initially defined as ~the amount of time to wait after a message has been processed before processing the next message~. But that is **not** how it is currently actually implemented. This option currently sets how long between each poll of the queue worker. For example, if this was set as 1 minute and the last message started a minute ago, but just finished processing after 90 seconds, then poll at the 1 minute mark would have returned due to "still processing", but it would poll again at the 2-minute mark. So this is not technically the amount of time to wait _after_ a message has been processed, but rather the amount of time to wait _between_ each poll of the queue worker.
+
+The `rotate` option does not preserve the order of the messages. When a message failes and is requeued it will be placed at the end of the queue. This is useful if don't care about the order of the messages and also don't want a single failed message to block the entire queue.
+
+The `verbose` option is useful for debugging. It will log the queue events to the console.
+
+The `store` option is the type of store to use for the queue. Currently, only `file` and `memory` are supported. The `file` store will persist the queue to disk in the OS temp directory. The `memory` store will keep the queue in memory. If you are using the `file` store, you can stop the server and restart it and the queue will be restored. If you are using the `memory` store, you will lose the queue if you stop/restart the server/channel/process.
+
+The `stringify` and `parse` options are used to convert the message to a string and back to a message. The default is to use the `toString()` and `new Msg()` methods. If you want the queue to store the JSON representation of the HL7 message, you can use:
+
+```typscript
+stringify: (msg) => JSON.stringify(msg.raw()),
+parse: (msg) => new Msg(JSON.parse(msg))
+```
 
 ## Store Configs
 
@@ -413,6 +559,8 @@ type StoreConfig =
 The `file.path`, `file.filename`, `surreal.namespace`, `surreal.database`, `surreal.table`, and `surreal.id` settings can use values from the message using the HL7 path (See Extrapolating Data from Messages below).
 
 The `file.path` and `file.filename` settings can be an array of strings that get concatenated together. Paths are concatenated using the directory traverse character (`/`). Filenames are concatenating with no separating character. If you need a separating character, then you can add it as an element in the array.
+
+In the future, more stores will be added. We are open to pull requests for new stores at: [gofer-stores](https://github.com/amaster507/gofer-stores)
 
 ## Message Class (`Msg`)
 

@@ -1,6 +1,6 @@
 {
   "name": "gofer-engine",
-  "version": "0.0.8",
+  "version": "0.1.1",
   "description": "An HL7 Interface Engine for Healthcare Interoperability built for Node.JS. Making interoperability a menial task.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -9,11 +9,10 @@
   "scripts": {
     "prepublishOnly": "pinst --disable",
     "postpublish": "pinst --enable",
-    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types && npm run build:umd",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
     "build:cjs": "node tools/cleanup cjs && tsc -p config/tsconfig.cjs.json",
     "build:esm": "node tools/cleanup esm && tsc -p config/tsconfig.esm.json",
     "build:types": "node tools/cleanup types && tsc -p config/tsconfig.types.json",
-    "build:umd": "node tools/cleanup umd && webpack --config config/webpack.config.js",
     "clean": "node tools/cleanup",
     "lint": "eslint",
     "package": "npm run build && npm pack",
@@ -48,12 +47,15 @@
   },
   "homepage": "https://github.com/amaster507/gofer#readme",
   "dependencies": {
+    "gofer-queue": "^1.0.0",
     "gofer-stores": "^0.0.5",
     "graphql": "^16.6.0",
+    "handelse": "^1.0.5",
     "ts-hl7": "^0.0.3"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.4.2",
+    "@types/better-queue": "^3.8.3",
     "@types/jest": "^29.4.0",
     "@types/node": "^18.11.18",
     "@typescript-eslint/eslint-plugin": "^5.50.0",

@@ -21,35 +21,42 @@ const transformer = (msg: Msg) => {
   return (
     msg
       // Check whether or not the gender meets the requirements of the destination system. Set to 'O' if not.
-      .map<string>('PID.8.1', <T extends string>(gender: T) =>
-        ['F', 'M', 'U', 'A', 'N'].includes(gender.toUpperCase())
-          ? (gender.toUpperCase() as T)
+      .map<string>('PID.8.1', <T extends string>(gender: T) => {
+        // FIXME: if PID.8.1 is not present then an empty array is returned instead of undefined as expected
+        const g = typeof gender === 'string' ? gender : ''
+        return ['F', 'M', 'U', 'A', 'N'].includes(g.toUpperCase())
+          ? (g.toUpperCase() as T)
           : ('O' as T)
-      )
+      })
       // Set admit reason to upper case
-      .map<string>(
-        'PV2.3.2',
-        <T extends string>(admitReason: T) => admitReason.toUpperCase() as T
-      )
+      .map<string>('PV2.3.2', <T extends string>(admitReason: T) => {
+        return (
+          // FIXME: if PV2.3.2 is not present then an empty array is returned instead of undefined as expected
+          (
+            typeof admitReason === 'string' ? admitReason : ''
+          ).toUpperCase() as T
+        )
+      })
   )
 }
 
 const SampleC: ChannelConfig = {
   id: 'sample-c',
-  verbose: true,
+  logLevel: 'warn',
   name: 'Sample C',
   source: {
     // listens for messages locally on port 9003
+    kind: 'tcp',
     tcp: {
       host: '0.0.0.0',
       port: 9003,
     },
   },
   ingestion: [
-    { file: {} }, // persists the original message
-    { ack: {} }, // sends an ack back
+    { kind: 'store', file: {} }, // persists the original message
+    { kind: 'ack', ack: {} }, // sends an ack back
     transformer, // applies the transformer function
-    { file: { path: ['local', 'transformed'] } }, // persists the transformed message
+    { kind: 'store', file: { path: ['local', 'transformed'] } }, // persists the transformed message
   ],
   routes: [],
 }
