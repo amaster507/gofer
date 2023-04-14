@@ -27,7 +27,7 @@ type TLoggerArgs<T> = {
   channelId: string | number
   routeId?: string | number
   flowId?: string | number
-  msg?: T
+  readonly msg?: T
 }
 export const logger =
   <T>({ channelId, flowId, msg }: TLoggerArgs<T>) =>

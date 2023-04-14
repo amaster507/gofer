@@ -1,5 +1,5 @@
 import Msg from 'ts-hl7'
-import { AckConfig } from './types'
+import { AckConfig, IMessageContext } from './types'
 import { logger } from './helpers'
 
 export const doAck = (
@@ -15,7 +15,8 @@ export const doAck = (
     channelId: string | number
     routeId?: string | number
     flowId?: string | number
-  }
+  },
+  context: IMessageContext
 ) => {
   const app = ackConfig.application ?? 'gofer ENGINE'
   const org = ackConfig.organization ?? ''
@@ -31,14 +32,14 @@ export const doAck = (
       txt ? `|${txt}` : ''
     }`
   )
-  if (typeof ackConfig.msg === 'function')
-    ackMsg = ackConfig.msg(ackMsg, msg, filtered, {
-      logger: logger({
-        channelId,
-        routeId,
-        flowId,
-        msg,
-      }),
+  if (typeof ackConfig.msg === 'function') {
+    context.logger = logger({
+      channelId,
+      routeId,
+      flowId,
+      msg,
     })
+    ackMsg = ackConfig.msg(ackMsg, msg, filtered, context)
+  }
   return ackMsg
 }

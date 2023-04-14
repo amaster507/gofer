@@ -6,26 +6,30 @@ import { store } from './initStores'
 import { IngestFunc } from './types'
 import { logger } from './helpers'
 
-export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
+export const runIngestFlows: IngestFunc = (channel, msg, ack, context) => {
   let filtered = false
   channel.ingestion.forEach((flow) => {
     const step = flow.flow
     if (typeof step === 'object') {
       if (step.kind === 'ack') {
         const ackConfig = step.ack
-        const ackMsg = doAck(msg, ackConfig, {
-          filtered,
-          channelId: channel.id,
-          flowId: flow.id,
-        })
+        const ackMsg = doAck(
+          msg,
+          ackConfig,
+          {
+            filtered,
+            channelId: channel.id,
+            flowId: flow.id,
+          },
+          context
+        )
         if (typeof ack === 'function') {
-          ack(ackMsg, {
-            logger: logger({
-              channelId: channel.id,
-              flowId: flow.id,
-              msg,
-            }),
+          context.logger = logger({
+            channelId: channel.id,
+            flowId: flow.id,
+            msg,
           })
+          ack(ackMsg, context)
           handelse.go(`gofer:${channel.id}.onAck`, {
             msg,
             ack: ackMsg,
@@ -39,7 +43,9 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
           filtered,
           step.filter,
           channel.id,
-          flow.id
+          flow.id,
+          undefined,
+          context
         )
         msg = m
         filtered = f
@@ -49,7 +55,9 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
           filtered,
           step.transformFilter,
           channel.id,
-          flow.id
+          flow.id,
+          undefined,
+          context
         )
         msg = m
         filtered = f
@@ -59,7 +67,9 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
           filtered,
           step.transform,
           channel.id,
-          flow.id
+          flow.id,
+          undefined,
+          context
         )
         msg = m
         filtered = f
@@ -91,7 +101,15 @@ export const runIngestFlows: IngestFunc = (channel, msg, ack) => {
           }) || false
       }
     } else if (typeof step === 'function') {
-      const [m, f] = filterOrTransform(msg, filtered, step, channel.id, flow.id)
+      const [m, f] = filterOrTransform(
+        msg,
+        filtered,
+        step,
+        channel.id,
+        flow.id,
+        undefined,
+        context
+      )
       msg = m
       filtered = f
     }

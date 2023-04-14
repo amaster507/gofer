@@ -7,11 +7,14 @@ import { store } from './initStores'
 import { queue } from './queue'
 import { tcpClient } from './tcpClient'
 import { Connection, IContext, RunRouteFunc, RunRoutesFunc } from './types'
+import { getRouteVar, setRouteVar } from './variables'
 
-export const runRoutes: RunRoutesFunc = async (channel, msg) => {
+export const runRoutes: RunRoutesFunc = async (channel, msg, context) => {
   const routes = channel?.routes ?? []
   return Promise.all(
     routes?.map((route) => {
+      context.getRouteVar = getRouteVar(route.id)
+      context.setRouteVar = setRouteVar(route.id)
       if (route.queue) {
         const options = mapOptions(route.queue)
         return new Promise<boolean>((res) => {
@@ -19,7 +22,7 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
             `${channel.id}.route.${route.id}`,
             (msg) => {
               return new Promise((res) => {
-                runRoute(channel.id, route.id, route.flows, msg)
+                runRoute(channel.id, route.id, route.flows, msg, context)
                   .then(() => {
                     // no matter if the message is filtered or not return true that the message was processed.
                     res(true)
@@ -40,7 +43,7 @@ export const runRoutes: RunRoutesFunc = async (channel, msg) => {
           return res(true)
         })
       }
-      return runRoute(channel.id, route.id, route.flows, msg)
+      return runRoute(channel.id, route.id, route.flows, msg, context)
     }) || []
   ).then((res) => !res.some((r) => !r))
 }
@@ -49,7 +52,8 @@ export const runRoute: RunRouteFunc = async (
   channelId,
   routeId,
   route,
-  msg
+  msg,
+  context
 ) => {
   handelse.go(`gofer:${channelId}.onRouteStart`, {
     msg,
@@ -63,14 +67,13 @@ export const runRoute: RunRouteFunc = async (
     flow: (msg: Msg, context: IContext) => boolean | Msg,
     flowId: string | number
   ) => {
-    const filterOrTransform = flow(msg, {
-      logger: logger({
-        channelId,
-        routeId,
-        flowId,
-        msg,
-      }),
+    context.logger = logger({
+      channelId,
+      routeId,
+      flowId,
+      msg,
     })
+    const filterOrTransform = flow(msg, context)
     if (typeof filterOrTransform === 'boolean') {
       if (!filterOrTransform)
         handelse.go(`gofer:${channelId}.onFilter`, {
