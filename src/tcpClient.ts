@@ -103,17 +103,48 @@ export const tcpClient: TcpClientFunc<Msg, Msg> = async (
   flowId,
   context
 ) => {
-  const ack = await sendMessage(
-    typeof host === 'function' ? host(msg, context) : host,
-    functionalVal(port, msg, context),
-    functionalVal(SoM, msg, context),
-    functionalVal(EoM, msg, context),
-    functionalVal(CR, msg, context),
-    responseTimeout,
-    stringify(msg),
-    channelId,
-    routeId,
-    flowId
-  )
-  return parse(ack)
+  const config: {
+    host?: string
+    port?: number
+    SoM?: string
+    EoM?: string
+    CR?: string
+  } = {}
+  try {
+    config.host = functionalVal(host, msg, context)
+    config.port = functionalVal(port, msg, context)
+    config.SoM = functionalVal(SoM, msg, context)
+    config.EoM = functionalVal(EoM, msg, context)
+    config.CR = functionalVal(CR, msg, context)
+  } catch (err: unknown) {
+    handelse.go(`gofer:${channelId}.onError`, {
+      error: err,
+      msg,
+      channel: channelId,
+      route: routeId,
+      flow: flowId,
+    })
+  }
+  if (
+    config.host !== undefined &&
+    config.port !== undefined &&
+    config.SoM !== undefined &&
+    config.EoM !== undefined &&
+    config.CR !== undefined
+  ) {
+    const ack = await sendMessage(
+      config.host,
+      config.port,
+      config.SoM,
+      config.EoM,
+      config.CR,
+      responseTimeout,
+      stringify(msg),
+      channelId,
+      routeId,
+      flowId
+    )
+    return parse(ack)
+  }
+  throw new Error('TCP client configuration is invalid')
 }
