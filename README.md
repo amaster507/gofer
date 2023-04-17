@@ -18,6 +18,9 @@ Contents:
   - [gofer Engine Configuration](#gofer-engine-configuration)
   - [Filter Flows](#filter-flows)
   - [Transform Flows](#transform-flows)
+  - [Transform or Filter Flows](#transform--or-filter-flows)
+  - [Context Object](#context-object)
+  - [Queing](#queuing)
   - [Store Configs](#store-configs)
   - [Message Class (Msg)](#message-class-msg)
     - [Decoding HL7 to JSON](#decoding)
@@ -254,7 +257,7 @@ interface Connection {
 
 Future plans include support for HL7 over HTTP, HL7 reading from files in a directory, and HL7 reading from a database. Eventually, I would like to support other message formats such as FHIR, CDA, CSV, PSV, etc.,
 
-More information on the [`QueueConfig`](#Queing) below.
+More information on the [`QueueConfig`](#queuing) below.
 
 ### Channel ingestion
 
@@ -270,9 +273,9 @@ type IngestionFlow =
         organization?: string
         // Optional. Value to use in MSA-1 field. Default to 'AA'
         responseCode?: 'AA' | 'AE' | 'AR'
-        // Optional. A function that accepts the ack MSG class, msg MSG class, and previous filtered state
+        // Optional. A function that accepts the ack MSG class, msg MSG class, and conext state object
         // and returns the ACK MSG class back. This allows for custom transformation of the ACK message.
-        msg?: (ack: Msg, msg: Msg, filtered: boolean) => Msg // See (## Message Class) below
+        msg?: (ack: Msg, msg: Msg, context: IAckContext) => Msg // See (## Message Class) below
       }
     }
   | FilterFlow // see (## Filter Flows) below
@@ -314,7 +317,7 @@ interface RouteFlowNamed {
 
 If you are going to add a queue to a route, then you must use the `Route` interface and not the simplified `RouteFlow[]` array. If you are going to add a queue to a flow, then you must use the `RouteFlowNamed` interface and not the simplified `RouteFlow` interface.
 
-More information on the [`QueueConfig`](#Queing) below.
+More information on the [`QueueConfig`](#queuing) below.
 
 The interface `RouteFlow` is computed to:
 
@@ -347,11 +350,13 @@ Currently only TCP remote destinations are supported.
 Filter Flows are used to filter messages. They are used to determine if a message should be processed further or if it should be dropped. The interface `FilterFlow` can be defined as:
 
 ```typescript
-type FilterFunc = (msg: Msg) => boolean
+type FilterFunc = (msg: Msg, context: IMessageContext) => boolean
 type FilterFlow = FilterFunc | { kind: 'filter'; filter: FilterFunc }
 ```
 
-Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and extrapulating data from the message to use in comparisons.
+_Refer to the **[Message Class (`Msg`)](#message-class-msg)** below for more information on the `Msg` class and extrapulating data from the message to use in comparisons._
+
+_Refer to the **[Context Object](#context-object)** below for more information on the `context` object._
 
 If the filter function returns `true`, then the message will be processed further. If the filter functions returns `false`, then the message will be dropped. An easy cathy phrase to remember is "If it's true, then let it through. If it's false, then let it halt."
 
@@ -403,13 +408,17 @@ The default is `'B'`. E.G. `const conf: ChannelConfig<'B'> = ...`
 Transform Flows are used to transform messages. The interface `TransformFlow` can be defined as:
 
 ```typescript
-type TransformFunc = (msg: Msg) => Msg
+type TransformFunc = (msg: Msg, context: IMessageContext) => Msg
 type TransformFlow =
   | TransformFunc
   | { kind: 'transform'; transform: TransformFunc }
 ```
 
-Refer to the [Message Class (`Msg`)](#message-class-msg) below for more information on the `Msg` class and transforming the data in the message. The trasnformer functions of the class retun back the class instance, so you can chain them together. Here is an example of a transformer that takes the field `PV1-3` and adds a prefix to it:
+_Refer to the **[Message Class (`Msg`)](#message-class-msg)** below for more information on the `Msg` class and transforming the data in the message._
+
+_Refer to the **[Context Object](#context-object)** below for more information on the `context` object._
+
+The trasnformer functions of the class retun back the class instance, so you can chain them together. Here is an example of a transformer that takes the field `PV1-3` and adds a prefix to it:
 
 ```typescript
 const channelConfig: ChannelConfig = {
@@ -455,12 +464,15 @@ For advanced type control, you can pass through a generic to the ChannelConfig (
 
 The default is `'B'`. E.G. `const conf: ChannelConfig<'B', 'B'> = ...`
 
-## Transform or Filter Flow
+## Transform or Filter Flows
 
 For flexibility, you can pass through a `TransformOrFilterFlow` to the ingestion array or route flows. This allows you to specify a filter and/or a transformer. The interface `TransformOrFilterFlow` is defined as:
 
 ```typescript
-type TransformFilterFunction = (msg: Msg) => false | Msg
+type TransformFilterFunction = (
+  msg: Msg,
+  context: IMessageContext
+) => false | Msg
 type TransformOrFilterFlow =
   | TransformFilterFunction
   | { kind: 'transformFilter'; transformFilter: TransformFilterFunction }
@@ -468,7 +480,37 @@ type TransformOrFilterFlow =
 
 This allows you to write a transformer that can exit early if a condition is not met and return `false` to prevent further processing of the following flows.
 
-### Queing
+## Context Object
+
+The acknowledgement, filter, and transformer functions all have access to a `context` object. This object is used to variable getters and setters that can be used to pass data between flow. Also in this context, you will find a logger function, and the absolute unique message id. The `context` object can be defined as:
+
+```typescript
+export interface IMessageContext {
+  messageId: string
+  logger: (log: string, logLevel?: 'debug' | 'info' | 'warn' | 'error') => void
+  setGlobalVar: <V>(varName: string, varValue: V) => void
+  getGlobalVar: <V>(varName: string) => V | undefined
+  setChannelVar: <V>(varName: string, varValue: V) => void
+  getChannelVar: <V>(varName: string) => V | undefined
+  setRouteVar?: <V>(varName: string, varValue: V) => void
+  getRouteVar?: <V>(varName: string) => V | undefined
+  setMsgVar: <V>(varName: string, varValue: V) => void
+  getMsgVar: <V>(varName: string) => V | undefined
+}
+export interface IAckContext extends IMessageContext {
+  filtered: boolean
+}
+```
+
+I assume most of these are self explanatory, but let's go over a few details just in case.
+
+The variable getters and setters can be passed a generic type to strongly type the variable. It is recommended to use this to prevent any type errors. There are 4 different types of variables that can be set and retrieved. The `Global` variables are set and retrieved from the global context. The `Channel` variables are set and retrieved from the channel context. The `Route` variables are set and retrieved from the route context. The `Route` getters and setters may be undefined if not within the context of a route. The `Msg` variables are set and retrieved from the message context. After the processing of the message, the `Msg` variables are cleared to free up memory.
+
+The `set` functions will create the variable if it does not exist, and the `get` functions will return `undefined` if the variable does not exist.
+
+The `filtered` property of the `AckContext` is a boolean that is set to `true` if the message was filtered. This can be used to determine if the message was filtered or not in the ingestion flow before the acknowledgement config. _Note, this is ignored if a queue is used in the TCP Source._
+
+## Queuing
 
 Queuing is useful for when you need to allow retries or throttle the number of messages being processed at a time. The Queue can be configured in three different places in a channel config.
 

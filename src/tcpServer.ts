@@ -1,17 +1,24 @@
 import net from 'net'
 import handelse from 'handelse'
 import Msg from 'ts-hl7'
-import { AckFunc, ChannelConfig } from './types'
+import { AckFunc, ChannelConfig, IContext, IMessageContext } from './types'
 import { queue } from './queue'
 import { doAck } from './doAck'
-import { isLogging, mapOptions } from './helpers'
+import { isLogging, logger, mapOptions } from './helpers'
+import { randomUUID } from 'crypto'
+import { setMsgVar, getMsgVar } from './variables'
 
 export const tcpServer = <
   Filt extends 'O' | 'F' | 'B' = 'B',
   Tran extends 'O' | 'F' | 'B' = 'B'
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
-  ingestMessage: (msg: Msg, ack?: AckFunc) => Promise<boolean>
+  ingestMessage: (
+    msg: Msg,
+    ack: AckFunc | undefined,
+    context: IMessageContext
+  ) => Promise<boolean>,
+  context: IContext
 ) => {
   const {
     host,
@@ -26,26 +33,26 @@ export const tcpServer = <
   const server = net.createServer({ allowHalfOpen: false })
   if (maxConnections !== undefined) server.setMaxListeners(maxConnections)
   server.listen(port, host, () => {
-    handelse.go(`gofer:${channel.id}.onLog`, {
+    handelse.go(`gofer:${id}.onLog`, {
       log: `Server listening on ${host}:${port}`,
-      channel: channel.id,
+      channel: id,
     })
   })
   server.on('connection', (socket) => {
     socket.setEncoding('utf8')
 
     const clientAddress = `${socket.remoteAddress}:${socket.remotePort}`
-    handelse.go(`gofer:${channel.id}.onLog`, {
+    handelse.go(`gofer:${id}.onLog`, {
       log: `New client connection from ${clientAddress}`,
-      channel: channel.id,
+      channel: id,
     })
 
     const data: Record<string, string> = {}
 
     socket.on('data', (packet) => {
-      handelse.go(`gofer:${channel.id}.onLog`, {
+      handelse.go(`gofer:${id}.onLog`, {
         log: `Received Data from Client ${clientAddress}:`,
-        channel: channel.id,
+        channel: id,
       })
       let hl7 = packet.toString()
       const f = hl7[0]
@@ -53,9 +60,9 @@ export const tcpServer = <
       const l = hl7[hl7.length - 2]
       // if beginning of a message and there is an existing partial message, then delete it
       if (f === SoM && data?.[clientAddress] !== undefined) {
-        handelse.go(`gofer:${channel.id}.onError`, {
+        handelse.go(`gofer:${id}.onError`, {
           error: `MESSAGE LOSS: Partial message removed from ${clientAddress}`,
-          channel: channel.id,
+          channel: id,
         })
         delete data[clientAddress]
       }
@@ -78,32 +85,38 @@ export const tcpServer = <
         return
       }
       const msg = new Msg(hl7)
-      handelse.go(`gofer:${channel.id}.onReceive`, {
+      const msgUUID = randomUUID()
+      context.setMsgVar = setMsgVar(msgUUID)
+      context.getMsgVar = getMsgVar(msgUUID)
+      context.messageId = msgUUID
+      context.logger = logger({ channelId: id, msg })
+      handelse.go(`gofer:${id}.onReceive`, {
         msg,
-        channel: channel.id,
+        channel: id,
       })
       if (queueConfig) {
-        handelse.go(`gofer:${channel.id}.onLog`, {
+        handelse.go(`gofer:${id}.onLog`, {
           log: `Utilizing queue ${id}.source`,
-          channel: channel.id,
+          channel: id,
         })
         const ack = doAck(
           msg,
           { text: 'Queued' },
           {
-            channelId: channel.id,
+            channelId: id,
             flowId: 'source',
-          }
+          },
+          context as IMessageContext
         )
         socket.write(SoM + ack.toString() + EoM + CR)
-        handelse.go(`gofer:${channel.id}.onAck`, {
+        handelse.go(`gofer:${id}.onAck`, {
           channel: channel.id,
           msg: msg,
           ack: ack,
         })
         queue(
           `${id}.source`,
-          (msg) => ingestMessage(msg),
+          (msg) => ingestMessage(msg, undefined, context as IMessageContext),
           msg,
           mapOptions({
             ...queueConfig,
@@ -114,9 +127,13 @@ export const tcpServer = <
           })
         )
       } else {
-        ingestMessage(msg, (ack: Msg) => {
-          socket.write(SoM + ack.toString() + EoM + CR)
-        })
+        ingestMessage(
+          msg,
+          (ack: Msg) => {
+            socket.write(SoM + ack.toString() + EoM + CR)
+          },
+          context as IMessageContext
+        )
       }
     })
     socket.on('close', (data) => {

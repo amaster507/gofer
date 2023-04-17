@@ -3,10 +3,6 @@ import Msg from 'ts-hl7'
 
 export type MaybePromise<T> = Promise<T> | T
 
-export interface IContext {
-  logger: (log: string, logLevel?: TLogLevel) => void
-}
-
 type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
   T,
   Exclude<keyof T, Keys>
@@ -33,6 +29,30 @@ export type OnlyOptional<T> = {
 
 export type OnlyRequired<T> = {
   [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K]
+}
+
+// helper generics only above this line
+export interface IContext {
+  // auto generated message uuid
+  messageId?: string
+  logger: (log: string, logLevel?: TLogLevel) => void
+  setGlobalVar: <V>(varName: string, varValue: V) => void
+  getGlobalVar: <V>(varName: string) => V | undefined
+  setChannelVar: <V>(channelId: string, varName: string, varValue: V) => void
+  getChannelVar: <V>(channelId: string, varName: string) => V | undefined
+  setRouteVar?: <V>(routeId: string, varName: string, varValue: V) => void
+  getRouteVar?: <V>(routeId: string, varName: string) => V | undefined
+  setMsgVar?: <V>(msgId: string, varName: string, varValue: V) => void
+  getMsgVar?: <V>(msgId: string, varName: string) => V | undefined
+}
+
+export type IMessageContext = RequiredProperties<
+  IContext,
+  'messageId' | 'getMsgVar' | 'setMsgVar'
+>
+
+export type IAckContext = IMessageContext & {
+  filtered: boolean
 }
 
 interface ITcpConfig {
@@ -146,7 +166,7 @@ export type AckConfig = {
     | 'AR' // Application Reject
   // A Store configuration to save persistent messages
   text?: string // Text to use in ACK MSA.3
-  msg?: (ack: Msg, msg: Msg, filtered: boolean, context: IContext) => Msg // returns the ack message to send
+  msg?: (ack: Msg, msg: Msg, context: IAckContext) => Msg // returns the ack message to send
 }
 
 interface Tag {
@@ -154,7 +174,7 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
-type FilterFunc = (msg: Msg, context: IContext) => boolean
+type FilterFunc = (msg: Msg, context: IMessageContext) => boolean
 
 // Returns true to pass through. Return false to filter out.
 // O = require objectified filters
@@ -166,7 +186,7 @@ export type FilterFlow<Filt extends 'O' | 'F' | 'B' = 'B'> = Filt extends 'O'
   ? FilterFunc
   : FilterFunc | { kind: 'filter'; filter: FilterFunc }
 
-type TransformFunc = (msg: Msg, context: IContext) => Msg
+type TransformFunc = (msg: Msg, context: IMessageContext) => Msg
 
 // O = require objectified transformers
 // F = require raw function transformers
@@ -180,7 +200,10 @@ export type TransformFlow<Tran extends 'O' | 'F' | 'B' = 'B'> = Tran extends 'O'
 // This is a function that can be used as a filter or transformer
 // If it returns false it will filter out the message
 // Otherwise it returns the transformed message
-type TransformFilterFunction = (msg: Msg, context: IContext) => false | Msg
+type TransformFilterFunction = (
+  msg: Msg,
+  context: IMessageContext
+) => false | Msg
 
 export type TransformOrFilterFlow<Tran extends 'O' | 'F' | 'B' = 'B'> =
   Tran extends 'O'
@@ -305,7 +328,7 @@ export type InitServers = <
   channels: ChannelConfig<Filt, Tran, 'S'>[]
 ) => void
 
-export type AckFunc = (ack: Msg, context: IContext) => void
+export type AckFunc = (ack: Msg, context: IMessageContext) => void
 
 export type IngestFunc = <
   Filt extends 'O' | 'F' | 'B' = 'B',
@@ -313,7 +336,8 @@ export type IngestFunc = <
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
   msg: Msg,
-  ack?: AckFunc
+  ack: AckFunc | undefined,
+  context: IMessageContext
 ) => Msg | false
 
 export type RunRoutesFunc = <
@@ -321,7 +345,8 @@ export type RunRoutesFunc = <
   Tran extends 'O' | 'F' | 'B' = 'B'
 >(
   channel: ChannelConfig<Filt, Tran, 'S'>,
-  msg: Msg
+  msg: Msg,
+  context: IMessageContext
 ) => Promise<boolean>
 
 export type RunRouteFunc = <
@@ -331,5 +356,6 @@ export type RunRouteFunc = <
   channelId: string | number,
   routeId: string | number,
   route: RequiredProperties<RouteFlowNamed<Filt, Tran>, 'id'>[],
-  msg: Msg
+  msg: Msg,
+  context: IMessageContext
 ) => Promise<boolean>
