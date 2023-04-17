@@ -51,6 +51,10 @@ export type IMessageContext = RequiredProperties<
   'messageId' | 'getMsgVar' | 'setMsgVar'
 >
 
+export type IAckContext = IMessageContext & {
+  filtered: boolean
+}
+
 interface ITcpConfig {
   host: string
   port: number
@@ -162,7 +166,7 @@ export type AckConfig = {
     | 'AR' // Application Reject
   // A Store configuration to save persistent messages
   text?: string // Text to use in ACK MSA.3
-  msg?: (ack: Msg, msg: Msg, filtered: boolean, context: IMessageContext) => Msg // returns the ack message to send
+  msg?: (ack: Msg, msg: Msg, context: IAckContext) => Msg // returns the ack message to send
 }
 
 interface Tag {

@@ -39,7 +39,7 @@ export const doAck = (
       flowId,
       msg,
     })
-    ackMsg = ackConfig.msg(ackMsg, msg, filtered, context)
+    ackMsg = ackConfig.msg(ackMsg, msg, { ...context, filtered })
   }
   return ackMsg
 }
