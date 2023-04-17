@@ -2,16 +2,18 @@ import net from 'net'
 import handelse from 'handelse'
 import Msg from 'ts-hl7'
 import { onLog } from './eventHandlers'
-import { TcpConfig } from './types'
+import { IMessageContext, TcpConfig } from './types'
+import { functionalVal } from './helpers'
 
 type TcpClientFunc<T, R> = (
   opt: TcpConfig<'O'>,
   msg: T,
-  stringify?: (msg: T) => string,
-  parse?: (data: string) => R,
-  channelId?: string | number,
-  routeId?: string | number,
-  flowId?: string | number
+  stringify: ((msg: T) => string) | undefined,
+  parse: ((data: string) => R) | undefined,
+  channelId: string | number | undefined,
+  routeId: string | number | undefined,
+  flowId: string | number | undefined,
+  context: IMessageContext
 ) => Promise<Msg>
 
 const sendMessage = async (
@@ -98,14 +100,15 @@ export const tcpClient: TcpClientFunc<Msg, Msg> = async (
   parse = (data: string) => new Msg(data),
   channelId,
   routeId,
-  flowId
+  flowId,
+  context
 ) => {
   const ack = await sendMessage(
-    host,
-    port,
-    SoM,
-    EoM,
-    CR,
+    typeof host === 'function' ? host(msg, context) : host,
+    functionalVal(port, msg, context),
+    functionalVal(SoM, msg, context),
+    functionalVal(EoM, msg, context),
+    functionalVal(CR, msg, context),
     responseTimeout,
     stringify(msg),
     channelId,
