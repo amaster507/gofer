@@ -6,7 +6,12 @@ import { logger, mapOptions } from './helpers'
 import { store } from './initStores'
 import { queue } from './queue'
 import { tcpClient } from './tcpClient'
-import { Connection, IContext, RunRouteFunc, RunRoutesFunc } from './types'
+import {
+  Connection,
+  IMessageContext,
+  RunRouteFunc,
+  RunRoutesFunc,
+} from './types'
 import { getRouteVar, setRouteVar } from './variables'
 
 export const runRoutes: RunRoutesFunc = async (channel, msg, context) => {
@@ -64,7 +69,7 @@ export const runRoute: RunRouteFunc = async (
   const flows: (boolean | Promise<boolean>)[] = []
   const doFilterTransform = (
     msg: Msg,
-    flow: (msg: Msg, context: IContext) => boolean | Msg,
+    flow: (msg: Msg, context: IMessageContext) => boolean | Msg,
     flowId: string | number
   ) => {
     context.logger = logger({
@@ -154,7 +159,8 @@ export const runRoute: RunRouteFunc = async (
           msg = doAck(
             msg,
             { text: 'Queued' },
-            { channelId, routeId, flowId: namedFlow.id }
+            { channelId, routeId, flowId: namedFlow.id },
+            context
           )
           continue
         }
