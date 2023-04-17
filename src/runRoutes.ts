@@ -145,7 +145,8 @@ export const runRoute: RunRouteFunc = async (
                     undefined,
                     channelId,
                     routeId,
-                    namedFlow.id
+                    namedFlow.id,
+                    context
                   )
                     .then(() => true)
                     .catch(() => false),
@@ -164,7 +165,16 @@ export const runRoute: RunRouteFunc = async (
           )
           continue
         }
-        msg = await tcpClient(tcpConfig, msg)
+        msg = await tcpClient(
+          tcpConfig,
+          msg,
+          undefined,
+          undefined,
+          channelId,
+          routeId,
+          namedFlow.id,
+          context
+        )
         flows.push(true)
         continue
       }

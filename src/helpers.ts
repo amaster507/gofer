@@ -4,6 +4,7 @@ import { publishers } from './eventHandlers'
 import { genId } from './genId'
 import {
   ChannelConfig,
+  IMessageContext,
   Ingestion,
   IngestionFlow,
   MaybePromise,
@@ -197,6 +198,14 @@ export const coerceStrictTypedChannels = (
     const stronglyTypedChannel = channel as ChannelConfig<'B', 'B', 'S'>
     return stronglyTypedChannel
   })
+}
+export const functionalVal = <T extends string | number | object | boolean>(
+  val: T | ((msg: Msg, context: IMessageContext) => T),
+  msg: Msg,
+  context: IMessageContext
+): T => {
+  if (typeof val === 'function') return val(msg, context)
+  return val
 }
 
 export const lastInArray = <T>(arr: T[]): T => {

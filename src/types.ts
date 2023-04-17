@@ -55,13 +55,16 @@ export type IAckContext = IMessageContext & {
   filtered: boolean
 }
 
-interface ITcpConfig {
-  host: string
-  port: number
-  SoM?: string // Start of Message: defaults to `Sting.fromCharCode(0x0b)`
-  EoM?: string // End of Message: defaults to `String.fromCharCode(0x1c)`
-  CR?: string // Carriage Return: defaults to `String.fromCharCode(0x0d)`
-  maxConnections?: number
+export type FunctProp<R> = ((msg: Msg, context: IMessageContext) => R) | R
+export type AllowFuncProp<Allow, R> = Allow extends true ? FunctProp<R> : R
+
+interface ITcpConfig<Functional extends boolean = false> {
+  host: AllowFuncProp<Functional, string>
+  port: AllowFuncProp<Functional, number>
+  SoM?: AllowFuncProp<Functional, string> // Start of Message: defaults to `Sting.fromCharCode(0x0b)`
+  EoM?: AllowFuncProp<Functional, string> // End of Message: defaults to `String.fromCharCode(0x1c)`
+  CR?: AllowFuncProp<Functional, string> // Carriage Return: defaults to `String.fromCharCode(0x0d)`
+  maxConnections?: number // used only for server TCP connections
 }
 
 export interface QueueConfig<T = Msg> {
@@ -96,7 +99,7 @@ export interface QueueConfig<T = Msg> {
 
 export type TcpConfig<T extends 'I' | 'O' = 'I'> = T extends 'I'
   ? ITcpConfig
-  : ITcpConfig & {
+  : ITcpConfig<true> & {
       responseTimeout?: number | false
     }
 

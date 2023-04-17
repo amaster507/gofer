@@ -2,16 +2,18 @@ import net from 'net'
 import handelse from 'handelse'
 import Msg from 'ts-hl7'
 import { onLog } from './eventHandlers'
-import { TcpConfig } from './types'
+import { IMessageContext, TcpConfig } from './types'
+import { functionalVal } from './helpers'
 
 type TcpClientFunc<T, R> = (
   opt: TcpConfig<'O'>,
   msg: T,
-  stringify?: (msg: T) => string,
-  parse?: (data: string) => R,
-  channelId?: string | number,
-  routeId?: string | number,
-  flowId?: string | number
+  stringify: ((msg: T) => string) | undefined,
+  parse: ((data: string) => R) | undefined,
+  channelId: string | number | undefined,
+  routeId: string | number | undefined,
+  flowId: string | number | undefined,
+  context: IMessageContext
 ) => Promise<Msg>
 
 const sendMessage = async (
@@ -98,19 +100,51 @@ export const tcpClient: TcpClientFunc<Msg, Msg> = async (
   parse = (data: string) => new Msg(data),
   channelId,
   routeId,
-  flowId
+  flowId,
+  context
 ) => {
-  const ack = await sendMessage(
-    host,
-    port,
-    SoM,
-    EoM,
-    CR,
-    responseTimeout,
-    stringify(msg),
-    channelId,
-    routeId,
-    flowId
-  )
-  return parse(ack)
+  const config: {
+    host?: string
+    port?: number
+    SoM?: string
+    EoM?: string
+    CR?: string
+  } = {}
+  try {
+    config.host = functionalVal(host, msg, context)
+    config.port = functionalVal(port, msg, context)
+    config.SoM = functionalVal(SoM, msg, context)
+    config.EoM = functionalVal(EoM, msg, context)
+    config.CR = functionalVal(CR, msg, context)
+  } catch (err: unknown) {
+    handelse.go(`gofer:${channelId}.onError`, {
+      error: err,
+      msg,
+      channel: channelId,
+      route: routeId,
+      flow: flowId,
+    })
+  }
+  if (
+    config.host !== undefined &&
+    config.port !== undefined &&
+    config.SoM !== undefined &&
+    config.EoM !== undefined &&
+    config.CR !== undefined
+  ) {
+    const ack = await sendMessage(
+      config.host,
+      config.port,
+      config.SoM,
+      config.EoM,
+      config.CR,
+      responseTimeout,
+      stringify(msg),
+      channelId,
+      routeId,
+      flowId
+    )
+    return parse(ack)
+  }
+  throw new Error('TCP client configuration is invalid')
 }
