@@ -20,7 +20,7 @@
     "package": "npm run build && npm pack",
     "postinstall": "husky install",
     "test": "jest",
-    "dev": "nodemon -r dotenv/config src/example.ts"
+    "dev": "nodemon -r dotenv/config src/example/server.ts"
   },
   "publishConfig": {
     "access": "public"

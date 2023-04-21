@@ -34,17 +34,27 @@ export const initStores = <
   })
   routeStores.forEach((storeConfig) => {
     const STORE = Object.keys(storeConfig)[0] as keyof typeof storeConfig
+    const hashed = hash(storeConfig)
+    if (storeConfig[STORE]?.verbose) {
+      console.log(
+        `Initializing ${STORE} (${hashed}): ${JSON.stringify(storeConfig)}`
+      )
+    }
     if (STORE !== undefined) {
-      hashedStores[hash(storeConfig)] = new stores[STORE](
-        storeConfig[STORE]
-      ) as Store
+      hashedStores[hashed] = new stores[STORE](storeConfig[STORE]) as Store
     }
   })
   return config
 }
 
-export const getStore = (config: StoreConfig): Store | undefined =>
-  hashedStores?.[hash(config)]
+export const getStore = (config: StoreConfig): Store | undefined => {
+  const hashed = hash(config)
+  const store = hashedStores?.[hashed]
+  if (config.file?.verbose || config.surreal?.verbose) {
+    console.log(`Retrieving store ${hashed}: ${JSON.stringify(store)}`)
+  }
+  return store
+}
 
 export const store = (
   config: StoreConfig & { kind?: string },
