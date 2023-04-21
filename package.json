@@ -50,7 +50,7 @@
   "homepage": "https://github.com/amaster507/gofer#readme",
   "dependencies": {
     "gofer-queue": "^1.0.0",
-    "gofer-stores": "^0.0.5",
+    "gofer-stores": "^0.0.6",
     "graphql": "^16.6.0",
     "handelse": "^1.0.5",
     "ts-hl7": "^0.0.3"

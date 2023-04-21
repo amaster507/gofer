@@ -16,14 +16,20 @@ const ChannelD: ChannelConfig = {
       ack: { organization: 'MyProject' },
     },
     {
-      kind: 'store',
-      surreal: {
-        verbose: true,
+      kind: 'flow',
+      id: 'IngestionStore',
+      flow: {
+        kind: 'store',
+        surreal: {
+          id: 'UUID',
+          uri: 'http://10.3.54.148:8000/rpc',
+          verbose: true,
+          warnOnError: true,
+          namespace: 'MyProject',
+          database: '$MSH.9.1',
+          table: '$MSH.9.2',
+        },
       },
-    },
-    {
-      kind: 'store',
-      file: {},
     },
   ],
 }
