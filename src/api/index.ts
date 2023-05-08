@@ -55,7 +55,7 @@ export const apiServer = (
   handler?: (request: IHttpRequest) => Promise<IHttpResponse>,
   { verbose }: IApiOptions = {}
 ) => {
-  net
+  const server = net
     .createServer()
     .listen(PORT, HOST)
     .on('connection', (socket) => {
@@ -79,5 +79,8 @@ export const apiServer = (
         socket.end()
       })
     })
-  onLog.go(`gofer Enine Management API listening on ${HOST}:${PORT}`)
+  onLog.go(`gofer Engine Management API listening on ${HOST}:${PORT}`)
+  return () => {
+    server.unref()
+  }
 }

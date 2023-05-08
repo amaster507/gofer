@@ -1,16 +1,47 @@
+import { randomUUID } from 'crypto'
 import { state } from '.'
 import { coerceStrictTypedChannels } from './helpers'
 import { initServers } from './initServers'
 import { initStores } from './initStores'
-import { ChannelConfig } from './types'
+import { ChannelConfig, Connection, FileConfig, OGofer, OIngest } from './types'
+import { ConfigIngestFlows } from './configIngestFlows'
 
-export const gofer = async (channels: ChannelConfig[]): Promise<void> => {
-  initServers(
-    initStores(
-      coerceStrictTypedChannels(channels).map((channel) => {
-        state.addChannel(channel)
-        return channel
-      })
-    )
-  )
+class Gofer implements OGofer {
+  private init = (channels?: ChannelConfig[]) => {
+    if (channels && channels.length) {
+      initServers(
+        initStores(
+          coerceStrictTypedChannels(channels).map((channel) => {
+            state.addChannel(channel)
+            return channel
+          })
+        )
+      )
+    }
+  }
+  public configs: OGofer['configs'] = (channels) => this.init(channels)
+  public run: OGofer['run'] = (channel) => {
+    this.configs([channel])
+  }
+  constructor(channels?: ChannelConfig[]) {
+    this.init(channels)
+  }
+  public listen: OGofer['listen'] = (type, host, port) => {
+    const source: Connection<'I'> = {
+      kind: type,
+      [type]: {
+        host,
+        port,          
+      }
+    }
+    return new ConfigIngestFlows(source)
+  }
+  // public files: OGofer['files'] = (config) => {
+  //   return undefined as any
+  // }
+  // public msg: OGofer['msg'] = (msg) => {
+  //   return undefined as any
+  // }
 }
+
+export const gofer = new Gofer()

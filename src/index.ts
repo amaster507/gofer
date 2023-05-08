@@ -7,7 +7,7 @@ export * from './types'
 
 export const state = new State({})
 
-apiServer(async (req) => {
+export const stopAPI = apiServer(async (req) => {
   const res = await new gql(JSON.parse(req.body), state).res()
   return {
     protocol: req.protocol,

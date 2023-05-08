@@ -18,6 +18,7 @@ export const runRoutes: RunRoutesFunc = async (channel, msg, context) => {
   const routes = channel?.routes ?? []
   return Promise.all(
     routes?.map((route) => {
+      context.routeId = route.id
       context.getRouteVar = getRouteVar(route.id)
       context.setRouteVar = setRouteVar(route.id)
       if (route.queue) {

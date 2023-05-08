@@ -1,6 +1,6 @@
 {
   "name": "gofer-engine",
-  "version": "0.2.4",
+  "version": "1.0.0",
   "description": "An HL7 Interface Engine for Healthcare Interoperability built for Node.JS. Making interoperability a menial task.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -53,7 +53,9 @@
     "gofer-stores": "^0.0.6",
     "graphql": "^16.6.0",
     "handelse": "^1.0.5",
-    "ts-hl7": "^0.0.3"
+    "ts-hl7": "^0.0.3",
+    "type-fest": "^3.10.0",
+    "unique-names-generator": "^4.7.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.4.2",
