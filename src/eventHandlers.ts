@@ -11,11 +11,24 @@ onError.do((error) => {
 })
 export const throwError = onError.pub
 
+interface ILoggingConfig {
+  console?: boolean
+}
+let loggingConfig: Required<ILoggingConfig> = {
+  console: true,
+}
+
+export const setLoggingConfig = (config = {}) => {
+  loggingConfig = { ...loggingConfig, ...config }
+}
+
 export const onLog = handelse.global<unknown>('gofer:log')
 onLog.do((log) => {
-  console.log(`${new Date().toISOString()}:`, log)
+  if (loggingConfig.console)
+    console.log(`${new Date().toISOString()}:`, log)
   return true
 })
+
 export const log = (...props: unknown[]) => {
   onLog.pub(props)
 }

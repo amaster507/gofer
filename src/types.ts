@@ -31,10 +31,14 @@ export type OnlyRequired<T> = {
   [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K]
 }
 
+export type varTypes = 'Global' | 'Channel' | 'Route' | 'Msg'
+
 // helper generics only above this line
 export interface IContext {
   // auto generated message uuid
   messageId?: string
+  channelId?: string
+  routeId?: string
   logger: (log: string, logLevel?: TLogLevel) => void
   setGlobalVar: <V>(varName: string, varValue: V) => void
   getGlobalVar: <V>(varName: string) => V | undefined
@@ -48,7 +52,10 @@ export interface IContext {
 
 export type IMessageContext = RequiredProperties<
   IContext,
-  'messageId' | 'getMsgVar' | 'setMsgVar'
+   | 'messageId'
+   | 'channelId'
+   | 'getMsgVar'
+   | 'setMsgVar'
 >
 
 export type IAckContext = IMessageContext & {
@@ -177,7 +184,8 @@ interface Tag {
   color?: string // a valid hexidecimal color string or valid CSS color name
 }
 
-type FilterFunc = (msg: Msg, context: IMessageContext) => boolean
+export type FilterFunc = (msg: Msg, context: IMessageContext) => boolean
+export type MsgVFunc<V> = (msg: Msg, context: IMessageContext) => V
 
 // Returns true to pass through. Return false to filter out.
 // O = require objectified filters
@@ -362,3 +370,65 @@ export type RunRouteFunc = <
   msg: Msg,
   context: IMessageContext
 ) => Promise<boolean>
+
+export interface OGofer {
+  run: (channels: ChannelConfig) => void
+  configs: (channels: ChannelConfig[]) => void
+  listen: (method: 'tcp', host: string, port: number) => OIngest
+  // files: (config: FileConfig) => OIngest
+  // msg: (msg: Msg) => OIngest
+}
+
+export type MsgVar<V> = V | ((msg: Msg, context?: IMessageContext) => V)
+export type WithVarDo<V> = (v: V | undefined, msg: Msg, context: IMessageContext) => void
+
+type DayOfWeek = 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'
+
+export interface ICronSchedule { // default is every hour on the hour
+  second?: number | '*' // 0-59|* (optional, default '0')
+  minute?: number | '*' // 0-59|* (optional, default '0')
+  hour?: number | '*' // 0-23|* (optional, default '*')
+  dayOfMonth?: number | '*' // 1-31|* (optional, default '*')
+  month?: number | '*' // 1-12|* (optional, default '*')
+  dayOfWeek?: DayOfWeek[] | '*' // 0-7|* (optional, default '*')
+  year?: number | '*' // 1970-2999|* (optional, default '*')
+}
+
+export interface OComplete {
+  run: () => void
+  // once: (when?: Date) => void
+  // schedule: (schedule: ICronSchedule) => void
+  export: () => ChannelConfig<'B', 'B', 'S'>
+  msg: (cb: (msg: Msg, context: IMessageContext) => void) => void
+}
+
+export interface OBase<O> {
+  name: (name: string) => O
+  id: (id: string | number) => O
+  filter: (f: FilterFlow<'F'>) => O
+  transform: (t: TransformFlow<'F'>) => O
+  store: (s: StoreConfig) => O
+  setMsgVar: <V>(varName: string, varValue: MsgVar<V>) => O
+  setChannelVar: <V>(varName: string, varValue: MsgVar<V>) => O
+  setGlobalVar: <V>(varName: string, varValue: MsgVar<V>) => O
+  getMsgVar: <V>(varName: string, getVal: WithVarDo<V>) => O
+  getChannelVar: <V>(varName: string, getVal: WithVarDo<V>) => O
+  getGlobalVar: <V>(varName: string, getVal: WithVarDo<V>) => O
+}
+
+export interface OIngest extends OComplete, OBase<OIngest> {
+  setVar: <V>(scope: Exclude<varTypes, 'Route'>, varName: string, varValue: MsgVar<V>) => OIngest
+  getVar: <V>(scope: Exclude<varTypes, 'Route'>, varName: string, getVal: WithVarDo<V>) => OIngest
+  ack: (ack?: AckConfig) => OIngest
+  route: (r: (route: ORoute) => ORoute) => OComplete
+  routes: (r: (route: () => ORoute) => ORoute[]) => OComplete
+}
+
+export interface ORoute extends OBase<ORoute> {
+  setVar: <V>(scope: varTypes, varName: string, varValue: MsgVar<V>) => ORoute
+  getVar: <V>(scope: varTypes, varName: string, getVal: WithVarDo<V>) => ORoute
+  setRouteVar: <V>(varName: string, varValue: MsgVar<V>) => ORoute
+  getRouteVar: <V>(varName: string, getVal: WithVarDo<V>) => ORoute
+  send: (method: 'tcp', host: string, port: number) => ORoute
+  export: () => RequiredProperties<Route<'F', 'F', 'S'>, 'id' | 'flows'>
+}
