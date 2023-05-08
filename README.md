@@ -75,7 +75,23 @@ If you are using TypeScript, then you should create a `tsconfig.json` file in yo
 
 ```typescript
 import gofer from 'gofer-engine'
-import { ChannelConfig } from 'gofer-engine/dist/types/types'
+import { ChannelConfig } from 'gofer-engine'
+
+gofer
+  .listen('tcp', 'localhost', 5500)
+  .name('My First Channel')
+  .ack()
+  .store({ file: {} })
+  .run()
+```
+
+_**NOTE**: Documentation coming soon for OOM style config building._
+
+Alternatively, you could pass a pre-built configuration file:
+
+```typescript
+import gofer from 'gofer-engine'
+import { ChannelConfig } from 'gofer-engine'
 
 const channel: ChannelConfig = {
   name: 'My First Channel',
@@ -93,7 +109,7 @@ const channel: ChannelConfig = {
   routes: [],
 }
 
-gofer([channel])
+gofer.configs([channel])
 ```
 
 The above adds a single channel that listens on localhost port 5500 for HL7 messages. It will acknowledge the messages and write them to a file in the default 'local' directory. See the [Developing Interface Channels](#Developing-Interface-Channels) section for more information on building and configuring channels.
