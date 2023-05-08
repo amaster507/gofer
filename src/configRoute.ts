@@ -63,7 +63,7 @@ export class ConfigRoute implements ORoute {
             context.setMsgVar(context.messageId, varName, val)
             break
           case 'Channel':
-            context.setChannelVar(context.channelId, varName, val)
+            context.setChannelVar(varName, val)
             break
           case 'Global':
             context.setGlobalVar(varName, val)
@@ -94,7 +94,7 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = isMsgVFunc(varValue) ? varValue(msg, context) : varValue
-        context.setRouteVar?.(context.routeId ?? '', varName, val)
+        context.setRouteVar?.(varName, val)
         return true
       }
     })
@@ -106,7 +106,7 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = isMsgVFunc(varValue) ? varValue(msg, context) : varValue
-        context.setChannelVar(context.channelId, varName, val)
+        context.setChannelVar(varName, val)
         return true
       }
     })
@@ -135,10 +135,10 @@ export class ConfigRoute implements ORoute {
             val = context.getMsgVar<V>(context.messageId, varName)
             break
           case 'Channel':
-            val = context.getChannelVar<V>(context.channelId, varName)
+            val = context.getChannelVar<V>(varName)
             break
           case 'Route':
-            val = context.getRouteVar?.<V>(context.routeId || '', varName)
+            val = context.getRouteVar?.<V>(varName)
             break
           case 'Global':
             val = context.getGlobalVar<V>(varName)
@@ -169,7 +169,7 @@ export class ConfigRoute implements ORoute {
       id: genId(),
       kind: 'flow',
       flow: (msg, context) => {
-        const val = context.getRouteVar?.<V>(context.routeId || '', varName)
+        const val = context.getRouteVar?.<V>(varName)
         getVal(val, msg, context)
         return true
       }
@@ -181,7 +181,7 @@ export class ConfigRoute implements ORoute {
       id: genId(),
       kind: 'flow',
       flow: (msg, context) => {
-        const val = context.getChannelVar<V>(context.channelId, varName)
+        const val = context.getChannelVar<V>(varName)
         getVal(val, msg, context)
         return true
       }

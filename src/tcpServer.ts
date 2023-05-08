@@ -89,6 +89,7 @@ export const tcpServer = <
       context.setMsgVar = setMsgVar(msgUUID)
       context.getMsgVar = getMsgVar(msgUUID)
       context.messageId = msgUUID
+      context.channelId = id
       context.logger = logger({ channelId: id, msg })
       handelse.go(`gofer:${id}.onReceive`, {
         msg,

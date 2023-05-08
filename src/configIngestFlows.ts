@@ -75,7 +75,7 @@ export class ConfigIngestFlows implements OIngest {
               context.setMsgVar(context.messageId, varName, val)
               break
             case 'Channel':
-              context.setChannelVar(context.channelId, varName, val)
+              context.setChannelVar(varName, val)
               break
             case 'Global':
               context.setGlobalVar(varName, val)
@@ -112,7 +112,7 @@ export class ConfigIngestFlows implements OIngest {
         kind: 'filter',
         filter: (msg, context) => {
           const val = isMsgVFunc(varValue) ? varValue(msg, context) : varValue
-          context.setChannelVar(context.channelId, varName, val)
+          context.setChannelVar(varName, val)
           return true
         }
       }
@@ -151,7 +151,7 @@ export class ConfigIngestFlows implements OIngest {
               val = context.getMsgVar<V>(context.messageId, varName)
               break
             case 'Channel':
-              val = context.getChannelVar<V>(context.channelId, varName)
+              val = context.getChannelVar<V>(varName)
               break
             case 'Global':
               val = context.getGlobalVar<V>(varName)
@@ -194,7 +194,7 @@ export class ConfigIngestFlows implements OIngest {
       flow: {
         kind: 'filter',
         filter: (msg, context) => {
-          const val = context.getChannelVar<V>(context.channelId, varName)
+          const val = context.getChannelVar<V>(varName)
           getVal(val, msg, context)
           return true
         }

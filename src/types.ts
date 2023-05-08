@@ -37,15 +37,15 @@ export type varTypes = 'Global' | 'Channel' | 'Route' | 'Msg'
 export interface IContext {
   // auto generated message uuid
   messageId?: string
-  channelId?: string
-  routeId?: string
+  channelId?: string | number
+  routeId?: string | number
   logger: (log: string, logLevel?: TLogLevel) => void
   setGlobalVar: <V>(varName: string, varValue: V) => void
   getGlobalVar: <V>(varName: string) => V | undefined
-  setChannelVar: <V>(channelId: string, varName: string, varValue: V) => void
-  getChannelVar: <V>(channelId: string, varName: string) => V | undefined
-  setRouteVar?: <V>(routeId: string, varName: string, varValue: V) => void
-  getRouteVar?: <V>(routeId: string, varName: string) => V | undefined
+  setChannelVar: <V>(varName: string, varValue: V) => void
+  getChannelVar: <V>(varName: string) => V | undefined
+  setRouteVar?: <V>(varName: string, varValue: V) => void
+  getRouteVar?: <V>(varName: string) => V | undefined
   setMsgVar?: <V>(msgId: string, varName: string, varValue: V) => void
   getMsgVar?: <V>(msgId: string, varName: string) => V | undefined
 }
