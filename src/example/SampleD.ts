@@ -22,7 +22,7 @@ const ChannelD: ChannelConfig = {
         kind: 'store',
         surreal: {
           id: 'UUID',
-          uri: 'http://10.3.54.148:8000/rpc',
+          uri: 'http://127.0.0.1:8000/rpc',
           verbose: true,
           warnOnError: true,
           namespace: 'MyProject',
