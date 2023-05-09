@@ -1,13 +1,13 @@
 import Msg from "ts-hl7";
 import { isMsgVFunc } from "./isMsgVFunc";
-import { ChannelConfig, Connection, IMessageContext, OIngest, varTypes } from "./types";
-import { ConfigComplete } from "./configComplete";
-import { ConfigRoute } from "./configRoute";
+import { ChannelConfig, Connection, IMessageContext, OIngest, WithVarDo, varTypes } from "./types";
+import { CompleteClass } from "./CompleteClass";
+import { RouteClass } from "./RouteClass";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
 import { genId } from "./genId";
 import gofer from ".";
 
-export class ConfigIngestFlows implements OIngest {
+export class IngestionClass implements OIngest {
   private config: ChannelConfig<'B', 'B', 'S'>
   constructor(source: Connection<'I'>) {
     const id = genId()
@@ -137,14 +137,14 @@ export class ConfigIngestFlows implements OIngest {
   public getVar = <V>(
     scope: Exclude<varTypes, 'Route'>,
     varName: string,
-    getVal: (v: V | undefined, msg: Msg, context: IMessageContext) => void
+    getVal: WithVarDo<V>
   ) => {
     this.config.ingestion.push({
       id: genId(),
       kind: 'flow',
       flow: {
-        kind: 'filter',
-        filter: (msg, context) => {
+        kind: 'transformFilter',
+        transformFilter: (msg, context) => {
           let val: V | undefined = undefined as V
           switch (scope) {
             case 'Msg':
@@ -159,8 +159,10 @@ export class ConfigIngestFlows implements OIngest {
             default:
               throw new Error(`Invalid scope: ${scope}`)
           }
-          getVal(val, msg, context)
-          return true
+          const res = getVal(val, msg, context)
+          if (res === undefined) return msg
+          if (!res) return false
+          return msg
         }
       }
     })
@@ -174,11 +176,13 @@ export class ConfigIngestFlows implements OIngest {
       id: genId(),
       kind: 'flow',
       flow: {
-        kind: 'filter',
-        filter: (msg, context) => {
+        kind: 'transformFilter',
+        transformFilter: (msg, context) => {
           const val = context.getMsgVar<V>(context.messageId, varName)
-          getVal(val, msg, context)
-          return true
+          const res = getVal(val, msg, context)
+          if (res === undefined) return msg
+          if (!res) return false
+          return msg
         }
       }
     })
@@ -192,11 +196,13 @@ export class ConfigIngestFlows implements OIngest {
       id: genId(),
       kind: 'flow',
       flow: {
-        kind: 'filter',
-        filter: (msg, context) => {
+        kind: 'transformFilter',
+        transformFilter: (msg, context) => {
           const val = context.getChannelVar<V>(varName)
-          getVal(val, msg, context)
-          return true
+          const res = getVal(val, msg, context)
+          if (res === undefined) return msg
+          if (!res) return false
+          return msg
         }
       }
     })
@@ -210,11 +216,13 @@ export class ConfigIngestFlows implements OIngest {
       id: genId(),
       kind: 'flow',
       flow: {
-        kind: 'filter',
-        filter: (msg, context) => {
+        kind: 'transformFilter',
+        transformFilter: (msg, context) => {
           const val = context.getGlobalVar<V>(varName)
-          getVal(val, msg, context)
-          return true
+          const res = getVal(val, msg, context)
+          if (res === undefined) return msg
+          if (!res) return false
+          return msg
         }
       }
     })
@@ -232,12 +240,12 @@ export class ConfigIngestFlows implements OIngest {
     return this
   }
   public route: OIngest['route'] = (route) => {
-    this.config.routes = [route(new ConfigRoute()).export()]
-    return new ConfigComplete(this.config)
+    this.config.routes = [route(new RouteClass()).export()]
+    return new CompleteClass(this.config)
   }
   public routes: OIngest['routes'] = (routes) => {
-    this.config.routes = routes(() => new ConfigRoute()).map((route) => route.export())
-    return new ConfigComplete(this.config)
+    this.config.routes = routes(() => new RouteClass()).map((route) => route.export())
+    return new CompleteClass(this.config)
   }
   public export: OIngest['export'] = () => this.config
   public run = () => {

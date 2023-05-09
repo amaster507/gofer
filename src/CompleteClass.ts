@@ -3,7 +3,7 @@ import gofer from "."
 import { ChannelConfig, IMessageContext, OComplete } from "./types"
 import { genId } from "./genId"
 
-export class ConfigComplete implements OComplete {
+export class CompleteClass implements OComplete {
   private config: ChannelConfig<'B', 'B', 'S'>
   constructor(config: ChannelConfig<'B', 'B', 'S'>) {
     this.config = config

@@ -4,7 +4,7 @@ import Msg from "ts-hl7"
 import { genId } from "./genId"
 import { isMsgVFunc } from "./isMsgVFunc"
 
-export class ConfigRoute implements ORoute {
+export class RouteClass implements ORoute {
   private config: RequiredProperties<Route<'F', 'F', 'S'>, 'id' | 'flows'>
   constructor() {
     const id = genId()
@@ -146,8 +146,10 @@ export class ConfigRoute implements ORoute {
           default:
             throw new Error(`Invalid scope: ${scope}`)
         }
-        getVal(val, msg, context)
-        return true
+        const res = getVal(val, msg, context)
+        if (res === undefined) return msg
+        if (!res) return false
+        return msg
       }
     })
     return this
@@ -158,8 +160,10 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = context.getMsgVar<V>(context.messageId, varName)
-        getVal(val, msg, context)
-        return true
+        const res = getVal(val, msg, context)
+        if (res === undefined) return msg
+        if (!res) return false
+        return msg
       }
     })
     return this
@@ -170,8 +174,10 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = context.getRouteVar?.<V>(varName)
-        getVal(val, msg, context)
-        return true
+        const res = getVal(val, msg, context)
+        if (res === undefined) return msg
+        if (!res) return false
+        return msg
       }
     })
     return this
@@ -182,8 +188,10 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = context.getChannelVar<V>(varName)
-        getVal(val, msg, context)
-        return true
+        const res = getVal(val, msg, context)
+        if (res === undefined) return msg
+        if (!res) return false
+        return msg
       }
     })
     return this
@@ -194,8 +202,10 @@ export class ConfigRoute implements ORoute {
       kind: 'flow',
       flow: (msg, context) => {
         const val = context.getGlobalVar<V>(varName)
-        getVal(val, msg, context)
-        return true
+        const res = getVal(val, msg, context)
+        if (res === undefined) return msg
+        if (!res) return false
+        return msg
       }
     })
     return this

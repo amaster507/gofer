@@ -4,7 +4,7 @@ import { coerceStrictTypedChannels } from './helpers'
 import { initServers } from './initServers'
 import { initStores } from './initStores'
 import { ChannelConfig, Connection, FileConfig, OGofer, OIngest } from './types'
-import { ConfigIngestFlows } from './configIngestFlows'
+import { IngestionClass } from './IngestionClass'
 
 class Gofer implements OGofer {
   private init = (channels?: ChannelConfig[]) => {
@@ -34,7 +34,7 @@ class Gofer implements OGofer {
         port,          
       }
     }
-    return new ConfigIngestFlows(source)
+    return new IngestionClass(source)
   }
   // public files: OGofer['files'] = (config) => {
   //   return undefined as any

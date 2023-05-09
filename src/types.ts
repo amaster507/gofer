@@ -380,23 +380,26 @@ export interface OGofer {
 }
 
 export type MsgVar<V> = V | ((msg: Msg, context?: IMessageContext) => V)
-export type WithVarDo<V> = (v: V | undefined, msg: Msg, context: IMessageContext) => void
+export type WithVarDo<V> = (v: V | undefined, msg: Msg, context: IMessageContext) => void | Msg | boolean
 
-type DayOfWeek = 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'
+// TODO: implement cron schedule
 
-export interface ICronSchedule { // default is every hour on the hour
-  second?: number | '*' // 0-59|* (optional, default '0')
-  minute?: number | '*' // 0-59|* (optional, default '0')
-  hour?: number | '*' // 0-23|* (optional, default '*')
-  dayOfMonth?: number | '*' // 1-31|* (optional, default '*')
-  month?: number | '*' // 1-12|* (optional, default '*')
-  dayOfWeek?: DayOfWeek[] | '*' // 0-7|* (optional, default '*')
-  year?: number | '*' // 1970-2999|* (optional, default '*')
-}
+// type DayOfWeek = 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'
+// export interface ICronSchedule { // default is every hour on the hour
+//   second?: number | '*' // 0-59|* (optional, default '0')
+//   minute?: number | '*' // 0-59|* (optional, default '0')
+//   hour?: number | '*' // 0-23|* (optional, default '*')
+//   dayOfMonth?: number | '*' // 1-31|* (optional, default '*')
+//   month?: number | '*' // 1-12|* (optional, default '*')
+//   dayOfWeek?: DayOfWeek[] | '*' // 0-7|* (optional, default '*')
+//   year?: number | '*' // 1970-2999|* (optional, default '*')
+// }
 
 export interface OComplete {
   run: () => void
+  // TODO: implement one time run
   // once: (when?: Date) => void
+  // TODO: implement cron scheduled runs
   // schedule: (schedule: ICronSchedule) => void
   export: () => ChannelConfig<'B', 'B', 'S'>
   msg: (cb: (msg: Msg, context: IMessageContext) => void) => void
