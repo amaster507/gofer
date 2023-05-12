@@ -1,5 +1,8 @@
 {
     "githubPullRequests.ignoredPullRequestBranches": [
         "main"
-    ]
+    ],
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.indentSize": "tabSize",
 }
