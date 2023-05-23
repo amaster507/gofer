@@ -40,8 +40,9 @@ export const initStores = <
         `Initializing ${STORE} (${hashed}): ${JSON.stringify(storeConfig)}`
       )
     }
-    if (STORE !== undefined) {
-      hashedStores[hashed] = new stores[STORE](storeConfig[STORE]) as Store
+    const config = storeConfig[STORE]
+    if (STORE !== undefined && config !== undefined) {
+      hashedStores[hashed] = new stores[STORE](config) as Store
     }
   })
   return config
